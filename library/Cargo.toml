@@ -10,10 +10,10 @@ eyre.workspace = true
 # Malachite dependencies
 malachite-core-types.workspace = true
 
-# Reth dependencies 
+# Reth dependencies
 reth-chainspec.workspace = true
 reth-tasks.workspace = true
-reth-primitives.workspace = true
+reth-ethereum-primitives.workspace = true
 reth-node-builder.workspace = true
 reth-consensus.workspace = true
 

@@ -15,9 +15,12 @@ eyre = "0.6.12"
 reth-node-builder = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-node-builder" }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-tasks" }
 reth-chainspec = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-chainspec" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-primitives" }
+reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-ethereum-primitives" }
 reth-consensus= { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-consensus" }
+reth-ethereum = { git = "https://github.com/paradigmxyz/reth", branch = "main", package = "reth-ethereum" }
 
+# Alloy dependencies
+alloy = { version = "1.0.9", default-features = false }
 
 # Malachite dependencies
 malachite-core-types = { git = "https://github.com/informalsystems/malachite", branch = "main", package = "informalsystems-malachitebft-core-types" }
