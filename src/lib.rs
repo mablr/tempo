@@ -55,10 +55,12 @@
 pub mod app;
 pub mod block;
 pub mod cli;
+pub mod codec;
 pub mod consensus;
 pub mod consensus_utils;
 pub mod context;
 pub mod height;
+pub mod proto;
 pub mod provider;
 pub mod types;
 pub mod utils;
