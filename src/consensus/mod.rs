@@ -52,8 +52,7 @@ pub mod node;
 use crate::app::State;
 use eyre::Result;
 use malachitebft_app::node::Node;
-use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 use tracing::info;
 
 pub use config::{EngineConfig, NetworkConfig, NodeConfig, WalConfig};

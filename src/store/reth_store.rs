@@ -1,13 +1,13 @@
 //! RethStore implementation that uses reth's database infrastructure for persistent storage.
 
-use crate::context::MalachiteContext;
-use crate::height::Height;
-use crate::{Value, ValueId};
+use crate::{context::MalachiteContext, height::Height, Value, ValueId};
 use eyre::Result;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_core_types::{CommitCertificate, Round};
-use reth_db_api::cursor::{DbCursorRO, DbCursorRW};
-use reth_db_api::transaction::{DbTx, DbTxMut};
+use reth_db_api::{
+    cursor::{DbCursorRO, DbCursorRW},
+    transaction::{DbTx, DbTxMut},
+};
 use reth_provider::{DBProvider, DatabaseProviderFactory};
 use std::sync::Arc;
 use thiserror::Error;

@@ -1,14 +1,14 @@
 //! Configuration types for the Malachite consensus engine
 
-use malachitebft_app::config::{
-    ConsensusConfig as MalachiteConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig,
-    P2pConfig, PubSubProtocol, RuntimeConfig, TimeoutConfig, ValuePayload, ValueSyncConfig,
+use malachitebft_app::{
+    config::{
+        ConsensusConfig as MalachiteConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig,
+        P2pConfig, PubSubProtocol, RuntimeConfig, TimeoutConfig, ValuePayload, ValueSyncConfig,
+    },
+    node::NodeConfig as MalachiteNodeConfig,
 };
-use malachitebft_app::node::NodeConfig as MalachiteNodeConfig;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{net::SocketAddr, path::PathBuf, str::FromStr};
 
 /// Main configuration for the consensus node
 #[derive(Clone, Debug, Serialize, Deserialize)]

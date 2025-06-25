@@ -8,13 +8,14 @@ use crate::{
     types::Address,
 };
 use async_trait::async_trait;
-use malachitebft_app::events::{RxEvent, TxEvent};
-use malachitebft_app::node::{
-    CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
-    MakeConfigSettings, Node, NodeHandle,
+use malachitebft_app::{
+    events::{RxEvent, TxEvent},
+    node::{
+        CanGeneratePrivateKey, CanMakeConfig, CanMakeGenesis, CanMakePrivateKeyFile, EngineHandle,
+        MakeConfigSettings, Node, NodeHandle,
+    },
+    types::{core::VotingPower, Keypair},
 };
-use malachitebft_app::types::core::VotingPower;
-use malachitebft_app::types::Keypair;
 use rand::{CryptoRng, RngCore};
 use std::path::PathBuf;
 use tokio::task::JoinHandle;

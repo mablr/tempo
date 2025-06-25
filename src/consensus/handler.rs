@@ -1,7 +1,6 @@
 //! Consensus message handler that bridges Malachite consensus to the Reth application
 
-use crate::app::State;
-use crate::context::MalachiteContext;
+use crate::{app::State, context::MalachiteContext};
 use eyre::eyre;
 use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
 use malachitebft_core_types::{Height as _, Round, Validity};

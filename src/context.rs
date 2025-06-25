@@ -1,14 +1,15 @@
-use crate::height::Height;
-use crate::provider::{Ed25519Provider, PublicKey};
-use crate::types::{Address, ProposalPart, Value, ValueId};
+use crate::{
+    height::Height,
+    provider::{Ed25519Provider, PublicKey},
+    types::{Address, ProposalPart, Value, ValueId},
+};
 use malachitebft_core_types::{
     Address as MalachiteAddress, Context, Extension as MalachiteExtension, NilOrVal,
     Proposal as MalachiteProposal, Round, SignedMessage, Validator as MalachiteValidator,
     ValidatorSet as MalachiteValidatorSet, Vote as MalachiteVote, VoteType,
 };
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::Display;
+use std::{fmt, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RoundWrapper(pub Round);

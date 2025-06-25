@@ -77,8 +77,10 @@ pub struct Value {
 impl Value {
     /// Creates a new Value by hashing the provided bytes using SipHash
     pub fn new(data: Bytes) -> Self {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::{Hash, Hasher},
+        };
 
         let mut hasher = DefaultHasher::new(); // Uses SipHash
         data.hash(&mut hasher);

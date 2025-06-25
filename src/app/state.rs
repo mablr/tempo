@@ -1,28 +1,30 @@
-use crate::context::{BasePeerAddress, BasePeerSet, MalachiteContext};
-use crate::height::Height;
-use crate::provider::Ed25519Provider;
-use crate::store::Store;
-use crate::types::Address;
-use crate::utils::seed_from_address;
-use crate::{ProposalPart, Value};
+use crate::{
+    context::{BasePeerAddress, BasePeerSet, MalachiteContext},
+    height::Height,
+    provider::Ed25519Provider,
+    store::Store,
+    types::Address,
+    utils::seed_from_address,
+    ProposalPart, Value,
+};
 use bytes::Bytes;
 use eyre::Result;
-use malachitebft_app_channel::app::streaming::StreamMessage;
-use malachitebft_app_channel::app::types::{
-    LocallyProposedValue, PeerId as MalachitePeerId, ProposedValue,
+use malachitebft_app_channel::app::{
+    streaming::StreamMessage,
+    types::{LocallyProposedValue, PeerId as MalachitePeerId, ProposedValue},
 };
 use malachitebft_core_types::{CommitCertificate, Height as HeightTrait, Round, VoteExtensions};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use rand::{rngs::StdRng, SeedableRng};
 use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_node_builder::NodeTypes;
 use reth_node_ethereum::EthereumNode;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
-use tokio::sync::Mutex as TokioMutex;
-use tokio::time::sleep;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, RwLock},
+    time::Duration,
+};
+use tokio::{sync::Mutex as TokioMutex, time::sleep};
 use tracing::info;
 
 /// Thread-safe wrapper for StdRng

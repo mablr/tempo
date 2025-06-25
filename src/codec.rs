@@ -1,10 +1,10 @@
 //! Codec implementations for Malachite consensus messages
 
-use crate::context::{BasePeerAddress, MalachiteContext};
-use crate::height::Height;
-use crate::proto;
-use crate::{Address, ValueId};
-use crate::{ProposalPart, Value};
+use crate::{
+    context::{BasePeerAddress, MalachiteContext},
+    height::Height,
+    proto, Address, ProposalPart, Value, ValueId,
+};
 use bytes::Bytes;
 use malachitebft_app::engine::util::streaming::StreamMessage;
 use malachitebft_codec::Codec;

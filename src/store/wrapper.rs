@@ -1,9 +1,7 @@
 //! Store wrapper for easier integration with the State module.
 
 use super::RethStore;
-use crate::context::MalachiteContext;
-use crate::height::Height;
-use crate::{Value, ValueId};
+use crate::{context::MalachiteContext, height::Height, Value, ValueId};
 use eyre::Result;
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_core_types::{CommitCertificate, Round};

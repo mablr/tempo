@@ -5,8 +5,10 @@ use malachitebft_core_types::{
 };
 pub use malachitebft_signing_ed25519::{PrivateKey, PublicKey, Signature};
 
-use crate::context::{BaseProposal, BaseVote, MalachiteContext};
-use crate::types::ProposalPart;
+use crate::{
+    context::{BaseProposal, BaseVote, MalachiteContext},
+    types::ProposalPart,
+};
 use malachitebft_core_types::{Height as MalachiteHeight, NilOrVal, VoteType};
 
 /// Ed25519 signing provider for Malachite consensus

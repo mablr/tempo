@@ -1,12 +1,13 @@
 use crate::consensus_utils::MalachiteConsensusBuilder;
-use reth::payload::{PayloadBuilderHandle, PayloadServiceCommand};
-use reth::transaction_pool::TransactionPool;
-use reth_chainspec::ChainSpec;
-use reth_node_builder::components::{BasicPayloadServiceBuilder, PayloadServiceBuilder};
-use reth_node_builder::{
-    components::ComponentsBuilder, FullNodeTypes, Node, NodeComponentsBuilder, NodeTypes,
+use reth::{
+    payload::{PayloadBuilderHandle, PayloadServiceCommand},
+    transaction_pool::TransactionPool,
 };
-use reth_node_builder::{BuilderContext, ConfigureEvm};
+use reth_chainspec::ChainSpec;
+use reth_node_builder::{
+    components::{BasicPayloadServiceBuilder, ComponentsBuilder, PayloadServiceBuilder},
+    BuilderContext, ConfigureEvm, FullNodeTypes, Node, NodeComponentsBuilder, NodeTypes,
+};
 use reth_node_ethereum::node::{
     EthereumAddOns, EthereumEngineValidatorBuilder, EthereumEthApiBuilder, EthereumNetworkBuilder,
     EthereumPoolBuilder,

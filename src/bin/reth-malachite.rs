@@ -1,14 +1,14 @@
 use clap::{Args, Parser};
 use reth::builder::NodeHandle;
-use reth_malachite::app::node::RethNode;
-use reth_malachite::app::{Config, Genesis, State, ValidatorInfo};
-use reth_malachite::cli::{Cli, MalachiteChainSpecParser};
-use reth_malachite::consensus::{start_consensus_engine, EngineConfig};
-use reth_malachite::context::MalachiteContext;
-use reth_malachite::store::{tables::Tables, Store};
-use reth_malachite::types::Address;
-use std::path::PathBuf;
-use std::sync::Arc;
+use reth_malachite::{
+    app::{node::RethNode, Config, Genesis, State, ValidatorInfo},
+    cli::{Cli, MalachiteChainSpecParser},
+    consensus::{start_consensus_engine, EngineConfig},
+    context::MalachiteContext,
+    store::{tables::Tables, Store},
+    types::Address,
+};
+use std::{path::PathBuf, sync::Arc};
 
 /// No Additional arguments
 #[derive(Debug, Clone, Copy, Default, Args)]
