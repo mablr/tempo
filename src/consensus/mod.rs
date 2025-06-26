@@ -32,11 +32,11 @@
 //!    - Calls appropriate methods on the app `State`
 //!    - Sends responses back through channels
 //!
-//! ## Key Components (to be implemented)
+//! ## Key Components
 //!
 //! - **`MalachiteNode`**: Implements Malachite's `Node` trait for configuration
 //! - **`run_consensus_handler`**: The main loop that processes consensus messages
-//! - **`ConsensusEngine`**: Manages the consensus engine lifecycle
+//! - **`ConsensusHandle`**: Manages the consensus engine lifecycle and provides control interface
 //! - **Configuration types**: Network, WAL, metrics settings for Malachite
 //!
 //! ## Integration Points
@@ -46,6 +46,7 @@
 //! - Integrates with reth's P2P network for consensus message propagation
 
 pub mod config;
+pub mod config_loader;
 pub mod handler;
 pub mod node;
 
