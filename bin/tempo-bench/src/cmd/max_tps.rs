@@ -787,6 +787,9 @@ async fn generate_transactions<F: TxFiller<TempoNetwork> + 'static>(
     let swaps = Arc::new(AtomicUsize::new(0));
     let orders = Arc::new(AtomicUsize::new(0));
     let erc20_transfers = Arc::new(AtomicUsize::new(0));
+    // Global tx counter used to bump priority fee, ensuring unique tx hashes
+    // when using expiring nonces (which share nonce=0).
+    let tx_id = Arc::new(AtomicUsize::new(0));
 
     let builders = ProgressBar::new(total_txs)
         .wrap_stream(stream::iter(
@@ -899,7 +902,19 @@ async fn generate_transactions<F: TxFiller<TempoNetwork> + 'static>(
                 });
             }
 
-            eyre::Ok((tx.try_into_request()?, signer))
+            let mut req = tx.try_into_request()?;
+
+            // Bump priority fee by a unique counter to ensure unique tx hashes
+            // when using expiring nonces (which share nonce=0).
+            let id = tx_id.fetch_add(1, Ordering::Relaxed) as u128;
+            if let Some(fee) = req.max_priority_fee_per_gas() {
+                req.inner.set_max_priority_fee_per_gas(fee + id);
+            }
+            if let Some(fee) = req.max_fee_per_gas() {
+                req.inner.set_max_fee_per_gas(fee + id);
+            }
+
+            eyre::Ok((req, signer))
         })
         .buffer_unordered(max_concurrent_requests)
         .try_collect::<Vec<_>>()
