@@ -446,7 +446,7 @@ impl reth_primitives_traits::serde_bincode_compat::RlpBincode for TempoTxEnvelop
 
 #[cfg(feature = "reth-codec")]
 mod codec {
-    use crate::{TempoSignature, TempoTransaction};
+    use crate::{TempoSignature, TempoTransaction, transaction::PrimitiveSignature};
 
     use super::*;
     use alloy_eips::eip2718::EIP7702_TX_TYPE_ID;
@@ -533,9 +533,16 @@ mod codec {
                 Self::Eip2930(tx) => tx.signature(),
                 Self::Eip1559(tx) => tx.signature(),
                 Self::Eip7702(tx) => tx.signature(),
-                Self::AA(_tx) => {
-                    // TODO: Will this work?
-                    &TEMPO_SYSTEM_TX_SIGNATURE
+                Self::AA(tx) => {
+                    // If signed with [`alloy_primitives::Signature`], return it directly.
+                    // Otherwise, return the fake system zeroed signature.
+                    if let TempoSignature::Primitive(PrimitiveSignature::Secp256k1(sig)) =
+                        tx.signature()
+                    {
+                        sig
+                    } else {
+                        &TEMPO_SYSTEM_TX_SIGNATURE
+                    }
                 }
             }
         }
@@ -615,6 +622,47 @@ mod codec {
         fn decompress(value: &[u8]) -> Result<Self, reth_db_api::DatabaseError> {
             let (obj, _) = Compact::from_compact(value, value.len());
             Ok(obj)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::transaction::{Call, KeychainSignature, TempoTransaction};
+        use alloy_primitives::{Bytes, Signature, TxKind, U256, address};
+        use reth_codecs::alloy::transaction::Envelope;
+
+        #[test]
+        fn test_envelope_signature_aa_secp256k1() {
+            let sig = Signature::test_signature();
+            let tx = TempoTransaction {
+                calls: vec![Call {
+                    to: TxKind::Call(address!("20c0000000000000000000000000000000000001")),
+                    value: U256::ZERO,
+                    input: Bytes::new(),
+                }],
+                ..Default::default()
+            };
+            let envelope = TempoTxEnvelope::AA(tx.into_signed(sig.into()));
+            assert_eq!(*Envelope::signature(&envelope), sig);
+        }
+
+        #[test]
+        fn test_envelope_signature_aa_keychain() {
+            let tx = TempoTransaction {
+                calls: vec![Call {
+                    to: TxKind::Call(address!("20c0000000000000000000000000000000000001")),
+                    value: U256::ZERO,
+                    input: Bytes::new(),
+                }],
+                ..Default::default()
+            };
+            let keychain_sig = TempoSignature::Keychain(KeychainSignature::new(
+                Address::ZERO,
+                PrimitiveSignature::Secp256k1(Signature::test_signature()),
+            ));
+            let envelope = TempoTxEnvelope::AA(AASigned::new_unhashed(tx, keychain_sig));
+            assert_eq!(*Envelope::signature(&envelope), TEMPO_SYSTEM_TX_SIGNATURE);
         }
     }
 }
