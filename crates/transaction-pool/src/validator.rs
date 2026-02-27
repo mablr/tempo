@@ -131,6 +131,17 @@ where
 
         let current_time = self.inner.fork_tracker().tip_timestamp();
         let spec = self.inner.chain_spec().tempo_hardfork_at(current_time);
+
+        // Validate keychain signature version (outer + authorization list).
+        if let Err(e) = tx.signature().validate_version(spec.is_t1c()) {
+            return Ok(Err(e.into()));
+        }
+        for auth_sig in &tx.tx().tempo_authorization_list {
+            if let Err(e) = auth_sig.signature().validate_version(spec.is_t1c()) {
+                return Ok(Err(e.into()));
+            }
+        }
+
         let auth = tx.tx().key_authorization.as_ref();
 
         // Ensure that key auth is valid if present.
@@ -182,7 +193,7 @@ where
             )));
         }
 
-        // This should fail happen because we validate the signature validity in `recover_signer`.
+        // This should never happen because we validate the signature validity in `recover_signer`.
         let Ok(key_id) = sig.key_id(&tx.signature_hash()) else {
             return Ok(Err(TempoPoolTransactionError::Keychain(
                 "Failed to recover access key ID from Keychain signature",
@@ -2195,12 +2206,26 @@ mod tests {
         use alloy_primitives::{Signature, TxKind, address};
         use alloy_signer::SignerSync;
         use alloy_signer_local::PrivateKeySigner;
+        use reth_chainspec::ForkCondition;
+        use reth_transaction_pool::error::PoolTransactionError;
+        use tempo_chainspec::hardfork::TempoHardfork;
         use tempo_primitives::transaction::{
             KeyAuthorization, SignatureType, SignedKeyAuthorization, TempoTransaction,
             tempo_transaction::Call,
-            tt_signature::{KeychainSignature, PrimitiveSignature, TempoSignature},
+            tt_signature::{
+                KeychainSignature, KeychainVersion, PrimitiveSignature, TempoSignature,
+            },
             tt_signed::AASigned,
         };
+
+        /// Returns a MODERATO chain spec with T1C activated at timestamp 0.
+        fn moderato_with_t1c() -> TempoChainSpec {
+            let mut spec = Arc::unwrap_or_clone(MODERATO.clone());
+            spec.inner
+                .hardforks
+                .extend([(TempoHardfork::T1C, ForkCondition::Timestamp(0))]);
+            spec
+        }
 
         /// Generate a secp256k1 keypair for testing
         fn generate_keypair() -> (PrivateKeySigner, Address) {
@@ -2209,11 +2234,40 @@ mod tests {
             (signer, address)
         }
 
-        /// Create an AA transaction with a keychain signature.
+        /// Create an AA transaction with a V2 keychain signature.
         fn create_aa_with_keychain_signature(
             user_address: Address,
             access_key_signer: &PrivateKeySigner,
             key_authorization: Option<SignedKeyAuthorization>,
+        ) -> TempoPooledTransaction {
+            create_aa_with_keychain_signature_versioned(
+                user_address,
+                access_key_signer,
+                key_authorization,
+                KeychainVersion::V2,
+            )
+        }
+
+        /// Create an AA transaction with a V1 (legacy) keychain signature.
+        fn create_aa_with_v1_keychain_signature(
+            user_address: Address,
+            access_key_signer: &PrivateKeySigner,
+            key_authorization: Option<SignedKeyAuthorization>,
+        ) -> TempoPooledTransaction {
+            create_aa_with_keychain_signature_versioned(
+                user_address,
+                access_key_signer,
+                key_authorization,
+                KeychainVersion::V1,
+            )
+        }
+
+        /// Create an AA transaction with a keychain signature of the specified version.
+        fn create_aa_with_keychain_signature_versioned(
+            user_address: Address,
+            access_key_signer: &PrivateKeySigner,
+            key_authorization: Option<SignedKeyAuthorization>,
+            version: KeychainVersion,
         ) -> TempoPooledTransaction {
             let tx_aa = TempoTransaction {
                 chain_id: 42431, // MODERATO chain_id
@@ -2245,16 +2299,27 @@ mod tests {
             );
             let sig_hash = unsigned.signature_hash();
 
-            // Sign with the access key
-            let signature = access_key_signer
-                .sign_hash_sync(&sig_hash)
-                .expect("signing failed");
-
-            // Create keychain signature
-            let keychain_sig = TempoSignature::Keychain(KeychainSignature::new(
-                user_address,
-                PrimitiveSignature::Secp256k1(signature),
-            ));
+            let keychain_sig = match version {
+                KeychainVersion::V1 => {
+                    let signature = access_key_signer
+                        .sign_hash_sync(&sig_hash)
+                        .expect("signing failed");
+                    TempoSignature::Keychain(KeychainSignature::new_v1(
+                        user_address,
+                        PrimitiveSignature::Secp256k1(signature),
+                    ))
+                }
+                KeychainVersion::V2 => {
+                    let sig_hash = KeychainSignature::signing_hash(sig_hash, user_address);
+                    let signature = access_key_signer
+                        .sign_hash_sync(&sig_hash)
+                        .expect("signing failed");
+                    TempoSignature::Keychain(KeychainSignature::new(
+                        user_address,
+                        PrimitiveSignature::Secp256k1(signature),
+                    ))
+                }
+            };
 
             let signed_tx = AASigned::new_unhashed(tx_aa, keychain_sig);
             let envelope: TempoTxEnvelope = signed_tx.into();
@@ -2274,7 +2339,7 @@ mod tests {
                 user_address,
                 key_id,
                 authorized_key_slot_value,
-                Arc::unwrap_or_clone(MODERATO.clone()),
+                moderato_with_t1c(),
             )
         }
 
@@ -2544,13 +2609,33 @@ mod tests {
             )
         }
 
-        /// Helper: sign a KeyAuthorization and build a transaction with it.
+        /// Helper: sign a KeyAuthorization and build a V2 transaction with it.
         fn build_key_auth_tx(
             chain_id: u64,
             access_key_signer: &PrivateKeySigner,
             access_key_address: Address,
             user_signer: &PrivateKeySigner,
             user_address: Address,
+        ) -> TempoPooledTransaction {
+            build_key_auth_tx_versioned(
+                chain_id,
+                access_key_signer,
+                access_key_address,
+                user_signer,
+                user_address,
+                KeychainVersion::V2,
+            )
+        }
+
+        /// Helper: sign a KeyAuthorization and build a transaction with the given
+        /// keychain version.
+        fn build_key_auth_tx_versioned(
+            chain_id: u64,
+            access_key_signer: &PrivateKeySigner,
+            access_key_address: Address,
+            user_signer: &PrivateKeySigner,
+            user_address: Address,
+            version: KeychainVersion,
         ) -> TempoPooledTransaction {
             let key_auth = KeyAuthorization {
                 chain_id,
@@ -2565,10 +2650,11 @@ mod tests {
                 .expect("signing failed");
             let signed_key_auth =
                 key_auth.into_signed(PrimitiveSignature::Secp256k1(auth_signature));
-            create_aa_with_keychain_signature(
+            create_aa_with_keychain_signature_versioned(
                 user_address,
                 access_key_signer,
                 Some(signed_key_auth),
+                version,
             )
         }
 
@@ -2578,17 +2664,24 @@ mod tests {
         fn test_key_authorization_chain_id_pre_t1c() -> Result<(), ProviderError> {
             let (access_key_signer, access_key_address) = generate_keypair();
             let (user_signer, user_address) = generate_keypair();
+            let moderato = Arc::unwrap_or_clone(MODERATO.clone());
 
             // chain_id=0 (wildcard) → accepted
-            let tx = build_key_auth_tx(
+            let tx = build_key_auth_tx_versioned(
                 0,
                 &access_key_signer,
                 access_key_address,
                 &user_signer,
                 user_address,
+                KeychainVersion::V1,
             );
-            let validator =
-                setup_validator_with_keychain_storage(&tx, user_address, access_key_address, None);
+            let validator = setup_validator_with_keychain_storage_spec(
+                &tx,
+                user_address,
+                access_key_address,
+                None,
+                moderato.clone(),
+            );
             let sp = validator.inner.client().latest().unwrap();
             let result = validator.validate_against_keychain(&tx, &sp)?;
             assert!(
@@ -2597,15 +2690,21 @@ mod tests {
             );
 
             // chain_id=42431 (matching MODERATO) → accepted
-            let tx = build_key_auth_tx(
+            let tx = build_key_auth_tx_versioned(
                 42431,
                 &access_key_signer,
                 access_key_address,
                 &user_signer,
                 user_address,
+                KeychainVersion::V1,
             );
-            let validator =
-                setup_validator_with_keychain_storage(&tx, user_address, access_key_address, None);
+            let validator = setup_validator_with_keychain_storage_spec(
+                &tx,
+                user_address,
+                access_key_address,
+                None,
+                moderato.clone(),
+            );
             let sp = validator.inner.client().latest().unwrap();
             let result = validator.validate_against_keychain(&tx, &sp)?;
             assert!(
@@ -2614,15 +2713,21 @@ mod tests {
             );
 
             // chain_id=99999 (wrong) → rejected
-            let tx = build_key_auth_tx(
+            let tx = build_key_auth_tx_versioned(
                 99999,
                 &access_key_signer,
                 access_key_address,
                 &user_signer,
                 user_address,
+                KeychainVersion::V1,
             );
-            let validator =
-                setup_validator_with_keychain_storage(&tx, user_address, access_key_address, None);
+            let validator = setup_validator_with_keychain_storage_spec(
+                &tx,
+                user_address,
+                access_key_address,
+                None,
+                moderato,
+            );
             let sp = validator.inner.client().latest().unwrap();
             let result = validator.validate_against_keychain(&tx, &sp);
             assert!(
@@ -2854,7 +2959,8 @@ mod tests {
                     Signature::test_signature(),
                 )),
             );
-            let sig_hash = unsigned.signature_hash();
+            // V2: sign keccak256(0x04 || sig_hash || user_address)
+            let sig_hash = KeychainSignature::signing_hash(unsigned.signature_hash(), real_user);
             let signature = access_key_signer
                 .sign_hash_sync(&sig_hash)
                 .expect("signing failed");
@@ -2909,8 +3015,8 @@ mod tests {
             authorized_key_slot_value: Option<U256>,
             tip_timestamp: u64,
         ) -> TempoTransactionValidator<MockEthProvider<TempoPrimitives, TempoChainSpec>> {
-            let provider = MockEthProvider::<TempoPrimitives>::new()
-                .with_chain_spec(Arc::unwrap_or_clone(MODERATO.clone()));
+            let provider =
+                MockEthProvider::<TempoPrimitives>::new().with_chain_spec(moderato_with_t1c());
 
             // Add sender account
             provider.add_account(
@@ -3313,8 +3419,8 @@ mod tests {
             enforce_limits: bool,
             spending_limit: Option<(Address, U256)>, // (token, limit)
         ) -> TempoTransactionValidator<MockEthProvider<TempoPrimitives, TempoChainSpec>> {
-            let provider = MockEthProvider::<TempoPrimitives>::new()
-                .with_chain_spec(Arc::unwrap_or_clone(MODERATO.clone()));
+            let provider =
+                MockEthProvider::<TempoPrimitives>::new().with_chain_spec(moderato_with_t1c());
 
             // Add sender account
             provider.add_account(
@@ -3554,6 +3660,188 @@ mod tests {
                     Err(TempoPoolTransactionError::SpendingLimitExceeded { .. })
                 ),
                 "Wrong token spending limit should be rejected (fee token has 0 limit)"
+            );
+        }
+
+        /// Returns a MODERATO chain spec WITHOUT T1C (pre-T1C).
+        fn moderato_without_t1c() -> TempoChainSpec {
+            Arc::unwrap_or_clone(MODERATO.clone())
+        }
+
+        /// Setup a validator with a specific chain spec and tip timestamp.
+        fn setup_validator_with_spec(
+            transaction: &TempoPooledTransaction,
+            chain_spec: TempoChainSpec,
+            tip_timestamp: u64,
+        ) -> TempoTransactionValidator<MockEthProvider<TempoPrimitives, TempoChainSpec>> {
+            let provider = MockEthProvider::<TempoPrimitives>::new().with_chain_spec(chain_spec);
+            provider.add_account(
+                transaction.sender(),
+                ExtendedAccount::new(transaction.nonce(), U256::ZERO),
+            );
+            provider.add_block(B256::random(), Default::default());
+
+            let inner =
+                EthTransactionValidatorBuilder::new(provider.clone(), TempoEvmConfig::mainnet())
+                    .disable_balance_check()
+                    .build(InMemoryBlobStore::default());
+            let amm_cache =
+                AmmLiquidityCache::new(provider).expect("failed to setup AmmLiquidityCache");
+            let validator = TempoTransactionValidator::new(
+                inner,
+                DEFAULT_AA_VALID_AFTER_MAX_SECS,
+                DEFAULT_MAX_TEMPO_AUTHORIZATIONS,
+                amm_cache,
+            );
+
+            let mock_block = create_mock_block(tip_timestamp);
+            validator.on_new_head_block(&mock_block);
+            validator
+        }
+
+        #[test]
+        fn test_legacy_v1_keychain_rejected_post_t1c() {
+            let (access_key_signer, _) = generate_keypair();
+            let user_address = Address::random();
+
+            let transaction =
+                create_aa_with_v1_keychain_signature(user_address, &access_key_signer, None);
+
+            let validator = setup_validator_with_spec(&transaction, moderato_with_t1c(), 0);
+            let state_provider = validator.inner.client().latest().unwrap();
+
+            let result = validator
+                .validate_against_keychain(&transaction, &state_provider)
+                .expect("should not be a provider error");
+
+            assert!(
+                matches!(
+                    result,
+                    Err(TempoPoolTransactionError::LegacyKeychainPostT1C)
+                ),
+                "V1 keychain should be rejected post-T1C, got: {result:?}"
+            );
+        }
+
+        #[test]
+        fn test_v2_keychain_accepted_post_t1c() -> Result<(), ProviderError> {
+            let (access_key_signer, access_key_address) = generate_keypair();
+            let user_address = Address::random();
+
+            let transaction =
+                create_aa_with_keychain_signature(user_address, &access_key_signer, None);
+
+            let slot_value = AuthorizedKey {
+                signature_type: 0,
+                expiry: u64::MAX,
+                enforce_limits: false,
+                is_revoked: false,
+            }
+            .encode_to_slot();
+
+            let validator = setup_validator_with_keychain_storage(
+                &transaction,
+                user_address,
+                access_key_address,
+                Some(slot_value),
+            );
+            let state_provider = validator.inner.client().latest().unwrap();
+
+            let result = validator.validate_against_keychain(&transaction, &state_provider)?;
+            assert!(
+                result.is_ok(),
+                "V2 keychain should be accepted post-T1C, got: {result:?}"
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn test_v2_keychain_rejected_pre_t1c() {
+            let (access_key_signer, _) = generate_keypair();
+            let user_address = Address::random();
+
+            let transaction =
+                create_aa_with_keychain_signature(user_address, &access_key_signer, None);
+
+            let validator = setup_validator_with_spec(&transaction, moderato_without_t1c(), 0);
+            let state_provider = validator.inner.client().latest().unwrap();
+
+            let result = validator
+                .validate_against_keychain(&transaction, &state_provider)
+                .expect("should not be a provider error");
+
+            assert!(
+                matches!(result, Err(TempoPoolTransactionError::V2KeychainPreT1C)),
+                "V2 keychain should be rejected pre-T1C, got: {result:?}"
+            );
+        }
+
+        #[test]
+        fn test_v1_keychain_accepted_pre_t1c() -> Result<(), ProviderError> {
+            let (access_key_signer, access_key_address) = generate_keypair();
+            let user_address = Address::random();
+
+            let transaction =
+                create_aa_with_v1_keychain_signature(user_address, &access_key_signer, None);
+
+            let slot_value = AuthorizedKey {
+                signature_type: 0,
+                expiry: u64::MAX,
+                enforce_limits: false,
+                is_revoked: false,
+            }
+            .encode_to_slot();
+
+            // Pre-T1C validator with keychain storage
+            let provider =
+                MockEthProvider::<TempoPrimitives>::new().with_chain_spec(moderato_without_t1c());
+            provider.add_account(
+                transaction.sender(),
+                ExtendedAccount::new(transaction.nonce(), U256::ZERO),
+            );
+            provider.add_block(B256::random(), Default::default());
+            let storage_slot =
+                AccountKeychain::new().keys[user_address][access_key_address].base_slot();
+            provider.add_account(
+                ACCOUNT_KEYCHAIN_ADDRESS,
+                ExtendedAccount::new(0, U256::ZERO)
+                    .extend_storage([(storage_slot.into(), slot_value)]),
+            );
+            let inner =
+                EthTransactionValidatorBuilder::new(provider.clone(), TempoEvmConfig::mainnet())
+                    .disable_balance_check()
+                    .build(InMemoryBlobStore::default());
+            let amm_cache =
+                AmmLiquidityCache::new(provider).expect("failed to setup AmmLiquidityCache");
+            let validator = TempoTransactionValidator::new(
+                inner,
+                DEFAULT_AA_VALID_AFTER_MAX_SECS,
+                DEFAULT_MAX_TEMPO_AUTHORIZATIONS,
+                amm_cache,
+            );
+
+            let state_provider = validator.inner.client().latest().unwrap();
+            let result = validator.validate_against_keychain(&transaction, &state_provider)?;
+            assert!(
+                result.is_ok(),
+                "V1 keychain should be accepted pre-T1C, got: {result:?}"
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn test_legacy_keychain_post_t1c_is_bad_transaction() {
+            assert!(
+                TempoPoolTransactionError::LegacyKeychainPostT1C.is_bad_transaction(),
+                "Post-T1C V1 rejection should be a bad transaction (permanent)"
+            );
+        }
+
+        #[test]
+        fn test_v2_keychain_pre_t1c_is_not_bad_transaction() {
+            assert!(
+                !TempoPoolTransactionError::V2KeychainPreT1C.is_bad_transaction(),
+                "Pre-T1C V2 rejection should NOT be a bad transaction (transient)"
             );
         }
     }
