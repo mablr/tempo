@@ -78,6 +78,14 @@ pub fn input_cost(calldata_len: usize) -> u64 {
 /// Precompiles must provide a dispatcher that decodes the 4-byte function selector from calldata,
 /// ABI-decodes the arguments, and routes to the corresponding method.
 pub trait Precompile {
+    /// Dispatches an EVM call to this precompile.
+    ///
+    /// Implementations should deduct calldata gas upfront via [`input_cost`], then decode the
+    /// 4-byte function selector from `calldata` and route to the matching method using
+    /// `dispatch_call` combined with the `view`, `mutate`, or `mutate_void` helpers.
+    ///
+    /// Business-logic errors are returned as reverted [`PrecompileOutput`]s with ABI-encoded
+    /// error data, while fatal failures (e.g. out-of-gas) are returned as [`PrecompileError`].
     fn call(&mut self, calldata: &[u8], msg_sender: Address) -> PrecompileResult;
 }
 
