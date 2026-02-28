@@ -1,5 +1,5 @@
 use crate::rpc::TempoTransactionRequest;
-use alloy_network::{Network, TransactionBuilder};
+use alloy_network::{DynTransactionBuilder, Network};
 use alloy_primitives::U256;
 use alloy_provider::{
     SendableTx,
@@ -173,7 +173,7 @@ impl<N: Network<TransactionRequest = TempoTransactionRequest>> TxFiller<N> for E
 #[cfg(test)]
 mod tests {
     use crate::{TempoNetwork, fillers::Random2DNonceFiller, rpc::TempoTransactionRequest};
-    use alloy_network::TransactionBuilder;
+    use alloy_network::{DynTransactionBuilder, TransactionBuilder};
     use alloy_primitives::ruint::aliases::U256;
     use alloy_provider::{ProviderBuilder, mock::Asserter};
     use eyre;

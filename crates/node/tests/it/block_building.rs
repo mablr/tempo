@@ -1,6 +1,6 @@
 use alloy::{
     consensus::{SignableTransaction, Transaction, TxEip1559, TxEnvelope},
-    network::{EthereumWallet, TransactionBuilder},
+    network::{EthereumWallet, NetworkTransactionBuilder},
     primitives::{Address, B256, U256},
     providers::{Provider, ProviderBuilder},
     signers::local::MnemonicBuilder,
@@ -44,8 +44,7 @@ where
                 .or(Some(TEMPO_T1_BASE_FEE as u128));
 
             let signed =
-                <TransactionRequest as TransactionBuilder<Ethereum>>::build(tx_req, &signer_clone)
-                    .await?;
+                NetworkTransactionBuilder::<Ethereum>::build(tx_req, &signer_clone).await?;
             Ok::<Bytes, eyre::Error>(signed.encoded_2718().into())
         }
     };
@@ -159,9 +158,7 @@ where
         tx_request.max_fee_per_gas = Some(TEMPO_T1_BASE_FEE as u128);
         tx_request.max_priority_fee_per_gas = Some(TEMPO_T1_BASE_FEE as u128);
 
-        let signed_tx =
-            <TransactionRequest as TransactionBuilder<Ethereum>>::build(tx_request, &signer)
-                .await?;
+        let signed_tx = NetworkTransactionBuilder::<Ethereum>::build(tx_request, &signer).await?;
         let tx_bytes: Bytes = signed_tx.encoded_2718().into();
         node.rpc.inject_tx(tx_bytes).await?;
     }

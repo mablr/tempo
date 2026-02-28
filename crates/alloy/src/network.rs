@@ -4,8 +4,9 @@ use crate::rpc::{TempoHeaderResponse, TempoTransactionReceipt, TempoTransactionR
 use alloy_consensus::{ReceiptWithBloom, TxType, error::UnsupportedTransactionType};
 
 use alloy_network::{
-    BuildResult, Ethereum, EthereumWallet, IntoWallet, Network, NetworkWallet, TransactionBuilder,
-    TransactionBuilderError, UnbuiltTransactionError,
+    BuildResult, DynTransactionBuilder, Ethereum, EthereumWallet, IntoWallet, Network,
+    NetworkTransactionBuilder, NetworkWallet, TransactionBuilder, TransactionBuilderError,
+    UnbuiltTransactionError,
 };
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
@@ -40,122 +41,129 @@ impl Network for TempoNetwork {
     type BlockResponse = Block<Transaction<TempoTxEnvelope>, Self::HeaderResponse>;
 }
 
-impl TransactionBuilder<TempoNetwork> for TempoTransactionRequest {
+impl DynTransactionBuilder for TempoTransactionRequest {
     fn chain_id(&self) -> Option<ChainId> {
-        TransactionBuilder::chain_id(&self.inner)
+        DynTransactionBuilder::chain_id(&self.inner)
     }
 
     fn set_chain_id(&mut self, chain_id: ChainId) {
-        TransactionBuilder::set_chain_id(&mut self.inner, chain_id)
+        DynTransactionBuilder::set_chain_id(&mut self.inner, chain_id)
     }
 
     fn nonce(&self) -> Option<u64> {
-        TransactionBuilder::nonce(&self.inner)
+        DynTransactionBuilder::nonce(&self.inner)
     }
 
     fn set_nonce(&mut self, nonce: u64) {
-        TransactionBuilder::set_nonce(&mut self.inner, nonce)
+        DynTransactionBuilder::set_nonce(&mut self.inner, nonce)
     }
 
     fn take_nonce(&mut self) -> Option<u64> {
-        TransactionBuilder::take_nonce(&mut self.inner)
+        DynTransactionBuilder::take_nonce(&mut self.inner)
     }
 
     fn input(&self) -> Option<&Bytes> {
-        TransactionBuilder::input(&self.inner)
+        DynTransactionBuilder::input(&self.inner)
     }
 
-    fn set_input<T: Into<Bytes>>(&mut self, input: T) {
-        TransactionBuilder::set_input(&mut self.inner, input)
+    fn set_input(&mut self, input: Bytes) {
+        DynTransactionBuilder::set_input(&mut self.inner, input)
     }
 
     fn from(&self) -> Option<Address> {
-        TransactionBuilder::from(&self.inner)
+        DynTransactionBuilder::from(&self.inner)
     }
 
     fn set_from(&mut self, from: Address) {
-        TransactionBuilder::set_from(&mut self.inner, from)
+        DynTransactionBuilder::set_from(&mut self.inner, from)
     }
 
     fn kind(&self) -> Option<TxKind> {
-        TransactionBuilder::kind(&self.inner)
+        DynTransactionBuilder::kind(&self.inner)
     }
 
     fn clear_kind(&mut self) {
-        TransactionBuilder::clear_kind(&mut self.inner)
+        DynTransactionBuilder::clear_kind(&mut self.inner)
     }
 
     fn set_kind(&mut self, kind: TxKind) {
-        TransactionBuilder::set_kind(&mut self.inner, kind)
+        DynTransactionBuilder::set_kind(&mut self.inner, kind)
     }
 
     fn value(&self) -> Option<U256> {
-        TransactionBuilder::value(&self.inner)
+        DynTransactionBuilder::value(&self.inner)
     }
 
     fn set_value(&mut self, value: U256) {
-        TransactionBuilder::set_value(&mut self.inner, value)
+        DynTransactionBuilder::set_value(&mut self.inner, value)
     }
 
     fn gas_price(&self) -> Option<u128> {
-        TransactionBuilder::gas_price(&self.inner)
+        DynTransactionBuilder::gas_price(&self.inner)
     }
 
     fn set_gas_price(&mut self, gas_price: u128) {
-        TransactionBuilder::set_gas_price(&mut self.inner, gas_price)
+        DynTransactionBuilder::set_gas_price(&mut self.inner, gas_price)
     }
 
     fn max_fee_per_gas(&self) -> Option<u128> {
-        TransactionBuilder::max_fee_per_gas(&self.inner)
+        DynTransactionBuilder::max_fee_per_gas(&self.inner)
     }
 
     fn set_max_fee_per_gas(&mut self, max_fee_per_gas: u128) {
-        TransactionBuilder::set_max_fee_per_gas(&mut self.inner, max_fee_per_gas)
+        DynTransactionBuilder::set_max_fee_per_gas(&mut self.inner, max_fee_per_gas)
     }
 
     fn max_priority_fee_per_gas(&self) -> Option<u128> {
-        TransactionBuilder::max_priority_fee_per_gas(&self.inner)
+        DynTransactionBuilder::max_priority_fee_per_gas(&self.inner)
     }
 
     fn set_max_priority_fee_per_gas(&mut self, max_priority_fee_per_gas: u128) {
-        TransactionBuilder::set_max_priority_fee_per_gas(&mut self.inner, max_priority_fee_per_gas)
+        DynTransactionBuilder::set_max_priority_fee_per_gas(
+            &mut self.inner,
+            max_priority_fee_per_gas,
+        )
     }
 
     fn gas_limit(&self) -> Option<u64> {
-        TransactionBuilder::gas_limit(&self.inner)
+        DynTransactionBuilder::gas_limit(&self.inner)
     }
 
     fn set_gas_limit(&mut self, gas_limit: u64) {
-        TransactionBuilder::set_gas_limit(&mut self.inner, gas_limit)
+        DynTransactionBuilder::set_gas_limit(&mut self.inner, gas_limit)
     }
 
     fn access_list(&self) -> Option<&AccessList> {
-        TransactionBuilder::access_list(&self.inner)
+        DynTransactionBuilder::access_list(&self.inner)
     }
 
     fn set_access_list(&mut self, access_list: AccessList) {
-        TransactionBuilder::set_access_list(&mut self.inner, access_list)
+        DynTransactionBuilder::set_access_list(&mut self.inner, access_list)
     }
 
+    fn can_submit(&self) -> bool {
+        DynTransactionBuilder::can_submit(&self.inner)
+    }
+
+    fn can_build(&self) -> bool {
+        DynTransactionBuilder::can_build(&self.inner) || self.can_build_aa()
+    }
+}
+
+impl TransactionBuilder for TempoTransactionRequest {}
+
+impl NetworkTransactionBuilder<TempoNetwork> for TempoTransactionRequest {
     fn complete_type(&self, ty: TempoTxType) -> Result<(), Vec<&'static str>> {
         match ty {
             TempoTxType::AA => self.complete_aa(),
             TempoTxType::Legacy
             | TempoTxType::Eip2930
             | TempoTxType::Eip1559
-            | TempoTxType::Eip7702 => TransactionBuilder::complete_type(
+            | TempoTxType::Eip7702 => NetworkTransactionBuilder::complete_type(
                 &self.inner,
                 ty.try_into().expect("tempo tx types checked"),
             ),
         }
-    }
-
-    fn can_submit(&self) -> bool {
-        TransactionBuilder::can_submit(&self.inner)
-    }
-
-    fn can_build(&self) -> bool {
-        TransactionBuilder::can_build(&self.inner) || self.can_build_aa()
     }
 
     fn output_tx_type(&self) -> TempoTxType {
@@ -170,7 +178,7 @@ impl TransactionBuilder<TempoNetwork> for TempoTransactionRequest {
         {
             TempoTxType::AA
         } else {
-            match TransactionBuilder::output_tx_type(&self.inner) {
+            match NetworkTransactionBuilder::output_tx_type(&self.inner) {
                 TxType::Legacy => TempoTxType::Legacy,
                 TxType::Eip2930 => TempoTxType::Eip2930,
                 TxType::Eip1559 => TempoTxType::Eip1559,
@@ -187,9 +195,11 @@ impl TransactionBuilder<TempoNetwork> for TempoTransactionRequest {
             TempoTxType::Legacy
             | TempoTxType::Eip2930
             | TempoTxType::Eip1559
-            | TempoTxType::Eip7702 => TransactionBuilder::output_tx_type_checked(&self.inner)?
-                .try_into()
-                .ok(),
+            | TempoTxType::Eip7702 => {
+                NetworkTransactionBuilder::output_tx_type_checked(&self.inner)?
+                    .try_into()
+                    .ok()
+            }
         }
     }
 
