@@ -355,6 +355,45 @@ impl From<AASigned> for TempoTxEnvelope {
     }
 }
 
+impl SignableTransaction<Signature> for TempoTypedTransaction {
+    fn set_chain_id(&mut self, chain_id: alloy_primitives::ChainId) {
+        match self {
+            Self::Legacy(tx) => tx.set_chain_id(chain_id),
+            Self::Eip2930(tx) => tx.set_chain_id(chain_id),
+            Self::Eip1559(tx) => tx.set_chain_id(chain_id),
+            Self::Eip7702(tx) => tx.set_chain_id(chain_id),
+            Self::AA(tx) => tx.set_chain_id(chain_id),
+        }
+    }
+
+    fn encode_for_signing(&self, out: &mut dyn alloy_rlp::BufMut) {
+        match self {
+            Self::Legacy(tx) => tx.encode_for_signing(out),
+            Self::Eip2930(tx) => tx.encode_for_signing(out),
+            Self::Eip1559(tx) => tx.encode_for_signing(out),
+            Self::Eip7702(tx) => tx.encode_for_signing(out),
+            Self::AA(tx) => tx.encode_for_signing(out),
+        }
+    }
+
+    fn payload_len_for_signature(&self) -> usize {
+        match self {
+            Self::Legacy(tx) => tx.payload_len_for_signature(),
+            Self::Eip2930(tx) => tx.payload_len_for_signature(),
+            Self::Eip1559(tx) => tx.payload_len_for_signature(),
+            Self::Eip7702(tx) => tx.payload_len_for_signature(),
+            Self::AA(tx) => tx.payload_len_for_signature(),
+        }
+    }
+}
+
+impl From<Signed<TempoTypedTransaction>> for TempoTxEnvelope {
+    fn from(value: Signed<TempoTypedTransaction>) -> Self {
+        let sig = *value.signature();
+        value.strip_signature().into_envelope(sig)
+    }
+}
+
 impl TempoTypedTransaction {
     /// Converts this typed transaction into a signed [`TempoTxEnvelope`]
     pub fn into_envelope(self, sig: Signature) -> TempoTxEnvelope {
