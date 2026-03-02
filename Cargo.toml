@@ -340,3 +340,21 @@ commonware-parallel = { git = "https://github.com/commonwarexyz/monorepo", rev =
 commonware-runtime = { git = "https://github.com/commonwarexyz/monorepo", rev = "540b008ebeb2c94518d9d32adcb0c2a027bee66a" }
 commonware-storage = { git = "https://github.com/commonwarexyz/monorepo", rev = "540b008ebeb2c94518d9d32adcb0c2a027bee66a" }
 commonware-utils = { git = "https://github.com/commonwarexyz/monorepo", rev = "540b008ebeb2c94518d9d32adcb0c2a027bee66a" }
+
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-consensus = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-contract = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-eips = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-genesis = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-network = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-provider = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-rpc-types-engine = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-rpc-types-eth = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-rpc-types-beacon = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-serde = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-signer = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-signer-local = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-transport = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-transport-http = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-rpc-client = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
+alloy-json-rpc = { git = "https://github.com/alloy-rs/alloy", rev = "bac6d329f422dcb006a97b21616f4bba1b35d3b5" }
