@@ -1,7 +1,7 @@
 //! Follower finalization driver.
 //!
 //! Validates finalized blocks received from upstream and reports them to marshal.
-//! Marshal's finalized block updates independently drive the consensus feed.
+//! Marshal's finalized tip updates independently drive the consensus feed.
 
 use std::future::Future;
 
@@ -103,10 +103,8 @@ impl Marshal for crate::alias::marshal::Mailbox {
         let mailbox = self.clone();
         async move {
             // Stub out a random target
-            let target = PrivateKey::random(&mut rand_08::thread_rng()).public_key();
-            mailbox
-                .hint_finalized(height, NonEmptyVec::new(target))
-                .await
+            let target = PrivateKey::random(rand::rng()).public_key();
+            mailbox.hint_finalized(height, NonEmptyVec::new(target));
         }
     }
 
@@ -117,6 +115,8 @@ impl Marshal for crate::alias::marshal::Mailbox {
 
     fn report(&self, activity: ConsensusActivity) -> impl Future<Output = ()> + Send {
         let mut mailbox = self.clone();
-        async move { commonware_consensus::Reporter::report(&mut mailbox, activity).await }
+        async move {
+            let _ = commonware_consensus::Reporter::report(&mut mailbox, activity);
+        }
     }
 }

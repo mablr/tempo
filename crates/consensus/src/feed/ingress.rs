@@ -1,14 +1,27 @@
 //! Mailbox for sending marshal updates to the feed actor.
 
-use commonware_consensus::{Reporter, marshal::Update};
+use commonware_actor::Feedback;
+use commonware_consensus::{
+    Reporter,
+    marshal::Update,
+    types::{Height, Round},
+};
 use commonware_utils::Acknowledgement as _;
 use futures::channel::mpsc;
 use tracing::error;
 
-use crate::consensus::block::Block;
+use crate::consensus::{Digest, block::Block};
+
+/// A newly observed directly finalized tip.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FinalizedTip {
+    pub(super) round: Round,
+    pub(super) height: Height,
+    pub(super) digest: Digest,
+}
 
 /// Sender half of the feed channel.
-pub(super) type Sender = mpsc::UnboundedSender<Block>;
+pub(super) type Sender = mpsc::UnboundedSender<FinalizedTip>;
 
 /// Mailbox for sending finalized marshal blocks to the feed actor.
 #[derive(Clone, Debug)]
@@ -25,18 +38,24 @@ impl Mailbox {
 impl Reporter for Mailbox {
     type Activity = Update<Block>;
 
-    async fn report(&mut self, update: Self::Activity) {
-        let Update::Block(block, acknowledgement) = update else {
-            return;
+    fn report(&mut self, update: Self::Activity) -> Feedback {
+        let tip = match update {
+            Update::Tip(round, height, digest) => FinalizedTip {
+                round,
+                height,
+                digest,
+            },
+            Update::Block(_, ack) => {
+                ack.acknowledge();
+                return Feedback::Ok;
+            }
         };
 
-        // The feed is best-effort and must never hold up marshal's durable
-        // finalized-block stream.
-        acknowledgement.acknowledge();
-
-        if self.sender.unbounded_send(block).is_err() {
-            error!("failed sending finalized block to feed because it is no longer running");
+        if self.sender.unbounded_send(tip).is_err() {
+            error!("failed sending finalized tip to feed because it is no longer running");
+            return Feedback::Closed;
         }
+        Feedback::Ok
     }
 }
 
@@ -57,7 +76,7 @@ mod tests {
     use crate::consensus::block::Block;
 
     #[test]
-    fn forwards_only_acknowledged_blocks() {
+    fn forwards_tips_and_acknowledges_blocks() {
         block_on(async {
             let (sender, mut receiver) = futures::channel::mpsc::unbounded();
             let mut mailbox = Mailbox::new(sender);
@@ -76,23 +95,27 @@ mod tests {
             )
             .expect("test block should not contain BAL side data");
 
-            mailbox
-                .report(Update::Tip(
-                    Round::new(Epoch::zero(), View::new(1)),
-                    block.height(),
-                    block.digest(),
-                ))
-                .await;
+            let _ = mailbox.report(Update::Tip(
+                Round::new(Epoch::zero(), View::new(1)),
+                block.height(),
+                block.digest(),
+            ));
+
+            let tip = receiver.next().await.expect("tip should be forwarded");
+            assert_eq!(tip.round, Round::new(Epoch::zero(), View::new(1)));
+            assert_eq!(tip.height, block.height());
+            assert_eq!(tip.digest, block.digest());
 
             let (acknowledgement, acknowledged) = Exact::handle();
-            mailbox
-                .report(Update::Block(block.clone(), acknowledgement))
-                .await;
+            assert!(
+                mailbox
+                    .report(Update::Block(block.into(), acknowledgement))
+                    .accepted()
+            );
 
             acknowledged
                 .await
                 .expect("feed should immediately acknowledge the block");
-            assert_eq!(receiver.next().await, Some(block));
             assert!(receiver.next().now_or_never().is_none());
         });
     }
