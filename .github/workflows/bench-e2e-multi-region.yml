@@ -50,7 +50,7 @@ on:
       max-concurrent-requests:
         type: string
         required: false
-        default: "100"
+        default: "5000"
       general-gas-limit:
         type: string
         required: false
@@ -171,7 +171,7 @@ on:
         description: Max concurrent sender requests.
         type: string
         required: true
-        default: "100"
+        default: "5000"
       txgen-ref:
         description: Optional ref to pin in tempoxyz/txgen.
         type: string
@@ -276,7 +276,7 @@ jobs:
       BENCH_INPUT_LOCAL_SSD_COUNT: ${{ (inputs.cloud || 'aws') == 'gcp' && ((inputs.bloat || '100') == '100' && '4' || '1') || '4' }}
       BENCH_INPUT_TPS: ${{ inputs.tps || (github.event_name == 'pull_request' && '100') || '50000' }}
       BENCH_INPUT_ACCOUNTS: ${{ inputs.accounts || '1000' }}
-      BENCH_INPUT_MAX_CONCURRENT_REQUESTS: ${{ inputs['max-concurrent-requests'] || (github.event_name == 'pull_request' && '10') || '100' }}
+      BENCH_INPUT_MAX_CONCURRENT_REQUESTS: ${{ inputs['max-concurrent-requests'] || (github.event_name == 'pull_request' && '10') || '5000' }}
       BENCH_INPUT_TXGEN_REF: ${{ inputs['txgen-ref'] || '' }}
       BENCH_INPUT_TOKEN_COUNT: ${{ inputs['token-count'] || '4' }}
       BENCH_INPUT_PROFILING: ${{ inputs.profiling || 'off' }}
@@ -454,6 +454,21 @@ jobs:
         if: env.BENCH_INPUT_CLOUD == 'aws'
         run: |
           "$BENCH_REPO_DIR/scripts/configure_aws_s3_transfer.sh"
+
+      # gcloud persists credentials and command state in SQLite files below its
+      # config directory.  Keep that state out of the runner image's shared
+      # default directory: benchmark phases run many gcloud commands and IAP
+      # tunnels concurrently, and a stale/corrupt default database causes
+      # gcloud to abort before issuing the requested API call.
+      - name: Isolate Google Cloud CLI state
+        if: env.BENCH_INPUT_CLOUD == 'gcp'
+        run: |
+          gcloud_config_dir="$RUNNER_TEMP/gcloud-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$gcloud_config_dir"
+          {
+            echo "CLOUDSDK_CONFIG=$gcloud_config_dir"
+            echo "CLOUDSDK_CORE_PROJECT=$BENCH_GCP_PROJECT_ID"
+          } >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud
         if: env.BENCH_INPUT_CLOUD == 'gcp'
