@@ -679,7 +679,7 @@ fn test_aa_gas_single_call_vs_normal_tx() {
     // Calculate expected gas using EVM2's function for equivalent normal tx
     let version =
         tempo_chainspec::gas_params::version(SpecId::CANCUN, TempoHardfork::Genesis, false);
-    let normal_tx_gas = evm2::ethereum::intrinsic_gas(
+    let (normal_tx_gas, _) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Call(to),
@@ -735,7 +735,7 @@ fn test_aa_gas_multiple_calls_overhead() {
     // Calculate base gas for a single normal tx
     let version =
         tempo_chainspec::gas_params::version(SpecId::CANCUN, TempoHardfork::Genesis, false);
-    let base_tx_gas = evm2::ethereum::intrinsic_gas(
+    let (base_tx_gas, _) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Call(Address::ZERO),
@@ -791,7 +791,7 @@ fn test_aa_gas_p256_signature() {
 
     // Calculate base gas for normal tx
     let version = tempo_chainspec::gas_params::version(spec, TempoHardfork::Genesis, false);
-    let base_gas = evm2::ethereum::intrinsic_gas(
+    let (base_gas, _) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Call(Address::ZERO),
@@ -839,7 +839,7 @@ fn test_aa_gas_create_call() {
 
     // Calculate expected using EVM2's function for CREATE tx
     let version = tempo_chainspec::gas_params::version(spec, TempoHardfork::Genesis, false);
-    let base_gas = evm2::ethereum::intrinsic_gas(
+    let (base_gas, _) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Create,
@@ -922,7 +922,7 @@ fn test_aa_gas_access_list() {
 
     // Calculate expected using EVM2's function
     let version = tempo_chainspec::gas_params::version(spec, TempoHardfork::Genesis, false);
-    let base_gas = evm2::ethereum::intrinsic_gas(
+    let (base_gas, _) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Call(Address::ZERO),
@@ -1017,7 +1017,7 @@ fn test_aa_gas_floor_gas_prague() {
 
     // Calculate expected floor gas using EVM2's function
     let version = tempo_chainspec::gas_params::version(spec, TempoHardfork::Genesis, false);
-    let base_gas = evm2::ethereum::floor_gas(
+    let (_, base_gas) = evm2::ethereum::intrinsic_and_floor_gas(
         &version,
         SIGNER,
         TxKind::Call(Address::ZERO),
