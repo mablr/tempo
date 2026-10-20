@@ -4,10 +4,13 @@ use alloy_consensus::{
     Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, Typed2718,
     transaction::{Either, Recovered, TxHashRef},
 };
-use alloy_eips::eip2930::AccessList;
+use alloy_eips::{
+    eip2930::AccessList,
+    eip7702::{RecoveredAuthority, RecoveredAuthorization},
+};
 use alloy_primitives::{Address, B256, Bytes, Signature, TxKind};
 pub use evm2::ethereum::RecoveredTxEnvelope;
-use evm2::ethereum::{LazyTxEip7702, TxEnvelope as EthTxEnvelope};
+use evm2::ethereum::{LazyAuthorization, LazyTxEip7702, TxEnvelope as EthTxEnvelope};
 use reth_evm::{FromRecoveredTx, FromTxWithEncoded, TransactionEnvMut};
 use reth_primitives_traits::WithEncoded;
 use std::{borrow::Borrow, ops::Deref, sync::Arc};
@@ -478,6 +481,22 @@ impl TempoTxEnv {
             transaction.set_expiring_nonce_idx(index);
         }
     }
+
+    /// Overrides one standard EIP-7702 authority for local impersonation or replay.
+    ///
+    /// Only the cached recovery result changes; the signed envelope and authorization fields
+    /// remain intact, and execution still validates the chain ID, nonce, and authority code.
+    /// Non-EIP-7702 transactions and out-of-range authorization indices are left unchanged.
+    pub fn override_authority(&mut self, index: usize, authority: Address) {
+        if let TempoEvmTx::Eip7702(transaction) = &mut self.evm_tx
+            && let Some(authorization) = transaction.inner_mut().authorization_list.get_mut(index)
+        {
+            *authorization = LazyAuthorization::Recovered(RecoveredAuthorization::new_unchecked(
+                authorization.inner().clone(),
+                RecoveredAuthority::Valid(authority),
+            ));
+        }
+    }
 }
 
 impl Borrow<TempoEvmTx> for TempoTxEnv {
@@ -661,7 +680,7 @@ impl TransactionEnvMut for TempoTxEnv {
 mod tests {
     use super::*;
     use alloy_consensus::{Signed, TxEip7702, transaction::TxHashRef};
-    use alloy_eips::eip2930::AccessListItem;
+    use alloy_eips::{eip2718::Encodable2718, eip2930::AccessListItem, eip7702::Authorization};
     use alloy_primitives::{B256, Signature, U256, keccak256};
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
@@ -729,14 +748,45 @@ mod tests {
 
     #[test]
     fn converts_eip7702_to_lazy_authorizations() {
-        let transaction = convert(TempoTxEnvelope::Eip7702(Signed::new_unhashed(
-            TxEip7702::default(),
+        let authorization = Authorization {
+            chain_id: U256::from(4217),
+            address: Address::repeat_byte(0x22),
+            nonce: 7,
+        }
+        .into_signed(Signature::new(U256::ZERO, U256::ZERO, true));
+        let envelope = TempoTxEnvelope::Eip7702(Signed::new_unhashed(
+            TxEip7702 {
+                authorization_list: vec![authorization.clone(), authorization.clone()],
+                ..Default::default()
+            },
             Signature::test_signature(),
-        )));
+        ));
+        let encoded = envelope.encoded_2718();
+        let mut transaction = TempoTxEnv::from(Recovered::new_unchecked(envelope, SIGNER));
 
         assert_eq!(transaction.ty(), 4);
-        assert_eq!(transaction.signer(), SIGNER);
-        assert!(transaction.as_eip7702().is_some());
+        assert_eq!(transaction.evm_tx().signer(), SIGNER);
+        assert_eq!(
+            transaction.as_eip7702().unwrap().authorization_list[1].authority(),
+            None
+        );
+
+        transaction.override_authority(1, SIGNER);
+        transaction.override_authority(2, Address::ZERO);
+        let authorizations = &transaction.as_eip7702().unwrap().authorization_list;
+        assert_eq!(authorizations[0].authority(), None);
+        assert_eq!(authorizations[1].authority(), Some(SIGNER));
+        assert_eq!(authorizations[1].inner(), authorization.inner());
+        assert_eq!(transaction.transaction().encoded_2718(), encoded);
+        assert_eq!(
+            Transaction::authorization_list(transaction.as_eip7702().unwrap()),
+            Some([authorization.clone(), authorization].as_slice())
+        );
+
+        let mut legacy = legacy_env(TxLegacy::default(), SIGNER);
+        let original = legacy.clone();
+        legacy.override_authority(0, Address::ZERO);
+        assert_eq!(legacy, original);
     }
 
     #[test]
