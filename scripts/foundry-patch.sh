@@ -281,7 +281,8 @@ assert_lock_versions_match() {
 
 # ── 6. Re-resolve the lockfile without upgrading unrelated crates ──────────
 # `cargo update` can pull newer upstream deps from Foundry's workspace, which is non-deterministic.
-# A normal resolver pass is enough to rewrite the lockfile entries for the tempo path overrides.
+# A workspace-only `cargo update` re-resolves the lockfile for the tempo path overrides without
+# downloading crates, so a blocked or unrelated Foundry dependency cannot fail the resolver check.
 # Keep this aligned with the CI Forge build so Optimism-only dependencies do not re-enter resolution.
 #
 # When tempo's reth bump introduces a stricter constraint on a transitive crate
@@ -298,7 +299,7 @@ pushd "$FOUNDRY_ROOT" >/dev/null
 update_stale_tempo_git_packages
 prev_conflict_pkg=""
 while true; do
-  err="$(cargo metadata --format-version=1 --no-default-features 2>&1 >/dev/null)" && break
+  err="$(cargo update --workspace 2>&1 >/dev/null)" && break
   clean_err="$(printf '%s\n' "$err" | sed -E 's/\x1b\[[0-9;]*[[:alpha:]]//g')"
   conflict_pkg="$(printf '%s\n' "$clean_err" | sed -nE 's/^error: failed to select a version for `([^`]+)`.*/\1/p' | head -n1)"
   selected_version="$(printf '%s\n' "$clean_err" | sed -nE 's/^[[:space:]]*previously selected package `[^ ]+ v([^`]+)`.*/\1/p' | head -n1)"
@@ -310,13 +311,13 @@ while true; do
   if [[ -n "$selected_version" ]]; then
     update_pkg="${conflict_pkg}@${selected_version}"
   fi
-  echo "cargo metadata failed on '$conflict_pkg' constraint; running 'cargo update -p $update_pkg' and retrying"
+  echo "cargo update --workspace failed on '$conflict_pkg' constraint; running 'cargo update -p $update_pkg' and retrying"
   cargo update -p "$update_pkg" >/dev/null
   prev_conflict_pkg="$conflict_pkg"
 done
 
 update_stale_tempo_git_packages
-cargo metadata --format-version=1 --no-default-features >/dev/null
+cargo update --workspace >/dev/null
 for package in alloy-primitives alloy-sol-types evm2; do
   assert_lock_versions_match "$package"
 done
