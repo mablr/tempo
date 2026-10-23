@@ -545,7 +545,12 @@ where
                 return TransactionValidationOutcome::Invalid(transaction, error);
             }
         }
-        let fee_token = fee_token.expect("successful Tempo handler resolves a fee token");
+        let Some(fee_token) = fee_token else {
+            return TransactionValidationOutcome::Error(
+                *transaction.hash(),
+                "successful Tempo handler did not resolve a fee token".into(),
+            );
+        };
 
         // Cache the resolved fee token from EVM validation for pool maintenance.
         transaction.set_resolved_fee_token(fee_token);
