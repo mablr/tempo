@@ -335,4 +335,44 @@ mod tests {
             "EIP-7702 per auth total must be 250,000"
         );
     }
+
+    /// Every hardfork's gas schedule: Ethereum values before T1, the TIP-1000 creation costs from
+    /// T1 and the TIP-1060 SSTORE residual and uncapped refunds from T7.
+    #[test]
+    fn test_gas_params_per_hardfork() {
+        for &spec in TempoHardfork::VARIANTS {
+            let gas = version(SpecId::OSAKA, spec, false).gas_params;
+            let case = format!("{spec}");
+
+            // Unchanged by Tempo.
+            assert_eq!(gas[GasId::ColdStorageCost], 2_100, "{case}");
+            assert_eq!(gas[GasId::ColdAccountAdditionalCost], 2_500, "{case}");
+            assert_eq!(gas[GasId::ColdStorageAdditionalCost], 2_000, "{case}");
+            assert_eq!(gas[GasId::WarmStorageReadCost], 100, "{case}");
+            assert_eq!(gas[GasId::SstoreResetWithoutColdLoadCost], 2_800, "{case}");
+            assert_eq!(gas[GasId::SstoreResetRefund], 2_800, "{case}");
+
+            let (set, set_refund, clear_refund, create, new_account, code_deposit, auth_refund) =
+                if spec.is_t7() {
+                    (5_000, 5_000, 0, 500_000, 250_000, 1_000, 0)
+                } else if spec.is_t1() {
+                    (250_000, 19_900, 4_800, 500_000, 250_000, 1_000, 0)
+                } else {
+                    (19_900, 19_900, 4_800, 32_000, 25_000, 200, 12_500)
+                };
+            assert_eq!(gas[GasId::SstoreSetWithoutLoadCost], set, "{case}");
+            assert_eq!(gas[GasId::SstoreSetRefund], set_refund, "{case}");
+            assert_eq!(gas[GasId::SstoreClearingSlotRefund], clear_refund, "{case}");
+            assert_eq!(gas[GasId::Create], create, "{case}");
+            assert_eq!(gas[GasId::TxCreateCost], create, "{case}");
+            assert_eq!(gas[GasId::NewAccountCost], new_account, "{case}");
+            assert_eq!(gas[GasId::CodeDepositCost], code_deposit, "{case}");
+            assert_eq!(gas[GasId::TxEip7702AuthRefund], auth_refund, "{case}");
+            assert_eq!(
+                gas[GasId::MaxRefundQuotient],
+                if spec.is_t7() { 1 } else { 5 },
+                "{case}"
+            );
+        }
+    }
 }
