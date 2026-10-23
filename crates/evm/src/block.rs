@@ -16,7 +16,8 @@ use evm2::{
 use reth_chainspec::{EthChainSpec as _, EthereumHardforks as _};
 use reth_evm::{
     BlockExecutionError, BlockExecutionOutput, BlockExecutor, BlockTransactionResult,
-    BlockValidationError, ExecutorTx, GasOutput, ReceiptBuilder, ReceiptBuilderCtx, RecoveredTx,
+    BlockValidationError, CommitChanges, ExecutorTx, GasOutput, ReceiptBuilder, ReceiptBuilderCtx,
+    RecoveredTx,
     execute::{map_database_error, map_handler_error},
 };
 use reth_evm_ethereum::{EthBlockExecutor, EthTransactionResultWithState};
@@ -493,11 +494,33 @@ impl<'a> TempoBlockExecutor<'a> {
         is_payment: bool,
         gas_used: u64,
     ) -> Result<BlockSection, BlockValidationError> {
+        Self::next_section(
+            self.section,
+            self.non_shared_gas_left,
+            self.non_payment_gas_left,
+            tx_hash,
+            is_system_tx,
+            is_payment,
+            gas_used,
+        )
+    }
+
+    /// Implements [`Self::validate_tx`] over copied section state, so it can run while the inner
+    /// executor is borrowed.
+    fn next_section(
+        section: BlockSection,
+        non_shared_gas_left: u64,
+        non_payment_gas_left: u64,
+        tx_hash: B256,
+        is_system_tx: bool,
+        is_payment: bool,
+        gas_used: u64,
+    ) -> Result<BlockSection, BlockValidationError> {
         if is_system_tx {
             // End-of-block system transactions are limited to a single subblocks metadata
             // transaction.
             if matches!(
-                self.section,
+                section,
                 BlockSection::System {
                     seen_subblocks_signatures: true
                 }
@@ -511,10 +534,10 @@ impl<'a> TempoBlockExecutor<'a> {
             });
         }
 
-        match self.section {
+        match section {
             BlockSection::StartOfBlock | BlockSection::NonShared => {
-                if gas_used > self.non_shared_gas_left
-                    || (!is_payment && gas_used > self.non_payment_gas_left)
+                if gas_used > non_shared_gas_left
+                    || (!is_payment && gas_used > non_payment_gas_left)
                 {
                     // Historical blocks can use the gas incentive section after
                     // exhausting the non-shared or general gas budget.
@@ -531,6 +554,41 @@ impl<'a> TempoBlockExecutor<'a> {
                 ))
             }
         }
+    }
+
+    /// Advances the block section and lane budgets after a transaction was committed.
+    fn record_committed_tx(
+        &mut self,
+        next_section: BlockSection,
+        block_gas_used: u64,
+        is_payment: bool,
+        execution_context: ExecutionContext,
+    ) {
+        self.block_gas_used = self.block_gas_used.saturating_add(block_gas_used);
+
+        self.section = next_section;
+
+        match self.section {
+            BlockSection::StartOfBlock => {
+                // no gas spending for start-of-block system transactions
+            }
+            BlockSection::NonShared => {
+                self.non_shared_gas_left -= block_gas_used;
+                if !is_payment {
+                    self.non_payment_gas_left -= block_gas_used;
+                }
+            }
+            BlockSection::GasIncentive => {
+                if matches!(execution_context, ExecutionContext::Transaction { .. }) {
+                    self.incentive_gas_used += block_gas_used;
+                }
+            }
+            BlockSection::System { .. } => {
+                // no gas spending for end-of-block system transactions
+            }
+        }
+
+        self.replay_state.commit_tx_changes();
     }
 }
 
@@ -693,33 +751,71 @@ impl<'a> BlockExecutor for TempoBlockExecutor<'a> {
         let next_section = self.validate_tx(tx_hash, is_system_tx, is_payment, block_gas_used)?;
 
         let gas_output = self.inner.commit_transaction(inner)?;
-        self.block_gas_used = self.block_gas_used.saturating_add(block_gas_used);
-
-        self.section = next_section;
-
-        match self.section {
-            BlockSection::StartOfBlock => {
-                // no gas spending for start-of-block system transactions
-            }
-            BlockSection::NonShared => {
-                self.non_shared_gas_left -= block_gas_used;
-                if !is_payment {
-                    self.non_payment_gas_left -= block_gas_used;
-                }
-            }
-            BlockSection::GasIncentive => {
-                if matches!(execution_context, ExecutionContext::Transaction { .. }) {
-                    self.incentive_gas_used += block_gas_used;
-                }
-            }
-            BlockSection::System { .. } => {
-                // no gas spending for end-of-block system transactions
-            }
-        }
-
-        self.replay_state.commit_tx_changes();
+        self.record_committed_tx(next_section, block_gas_used, is_payment, execution_context);
 
         Ok(gas_output)
+    }
+
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl ExecutorTx<Self>,
+        f: impl FnOnce(&TxResult<TempoEvmTypes>) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        let (mut tx_env, recovered) = tx.into_parts();
+        // Remove any prewarming-specific context that was added to the tx env.
+        tx_env.inner_mut().set_expiring_nonce_idx(None);
+        let execution_context = tx_env.inner().execution_context();
+        let original = recovered.tx();
+        let is_system_tx = self.validate_tx_pre_execution(original)?;
+        let tx_hash = *original.tx_hash();
+        let is_payment = self.is_payment(original);
+        let use_regular_gas = self.evm().version().feature(evm2::EvmFeatures::EIP8037);
+        let (section, non_shared_gas_left, non_payment_gas_left) = (
+            self.section,
+            self.non_shared_gas_left,
+            self.non_payment_gas_left,
+        );
+
+        // Validate the section inside the commit condition so the transaction commits in place
+        // instead of detaching its state and reattaching it in `commit_transaction`.
+        let mut validated = None;
+        let gas_output = self.inner.execute_transaction_with_commit_condition(
+            (tx_env, recovered),
+            |result| {
+                let block_gas_used = if use_regular_gas {
+                    result.execution_gas_spent()
+                } else {
+                    result.tx_gas_used()
+                };
+                let next_section = Self::next_section(
+                    section,
+                    non_shared_gas_left,
+                    non_payment_gas_left,
+                    tx_hash,
+                    is_system_tx,
+                    is_payment,
+                    block_gas_used,
+                );
+                let commit = if next_section.is_ok() {
+                    f(result)
+                } else {
+                    CommitChanges::No
+                };
+                validated = Some(next_section.map(|section| (section, block_gas_used)));
+                commit
+            },
+        )?;
+
+        let Some(gas_output) = gas_output else {
+            return match validated {
+                Some(Err(err)) => Err(err.into()),
+                _ => Ok(None),
+            };
+        };
+        if let Some(Ok((next_section, block_gas_used))) = validated {
+            self.record_committed_tx(next_section, block_gas_used, is_payment, execution_context);
+        }
+        Ok(Some(gas_output))
     }
 
     fn finish_with_block_access_list(
@@ -1580,6 +1676,39 @@ mod tests {
             result.unwrap_err().to_string(),
             "duplicate subblocks metadata system transaction"
         );
+    }
+
+    #[test]
+    fn test_execute_transaction_rejects_section_before_commit() {
+        let chainspec = test_chainspec();
+        let mut db = InMemoryDB::default();
+        let mut executor = TestExecutorBuilder::default()
+            .with_section(BlockSection::NonShared)
+            .build(&mut db, &chainspec);
+
+        let signer = PrivateKey::from_seed(0);
+        let input = create_system_tx_input(vec![create_subblock_metadata(&signer)], 1);
+        let system_tx = create_system_tx(chainspec.chain_id(), input);
+
+        executor
+            .execute_transaction(Recovered::new_unchecked(system_tx.clone(), Address::ZERO))
+            .unwrap();
+        assert_eq!(executor.receipts().len(), 1);
+        assert_eq!(
+            executor.section,
+            BlockSection::System {
+                seen_subblocks_signatures: true
+            }
+        );
+
+        let err = executor
+            .execute_transaction(Recovered::new_unchecked(system_tx, Address::ZERO))
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "duplicate subblocks metadata system transaction"
+        );
+        assert_eq!(executor.receipts().len(), 1);
     }
 
     #[test]
