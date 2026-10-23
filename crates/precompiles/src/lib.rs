@@ -274,10 +274,13 @@ where
         if let Some(result) = self.base.execute(evm, message, gas) {
             return Some(result);
         }
-        if !self.contains_tempo(&message.code_address) {
+        // Dispatch on the requested callee like evm2's membership check: code stored at a
+        // precompile address, such as EIP-7702 delegation code from a state override, never
+        // replaces the native precompile.
+        if !self.contains_tempo(&message.call_target) {
             return None;
         }
-        if message.destination != message.code_address {
+        if message.destination != message.call_target {
             return Some(Err(PrecompileError::Revert(
                 DelegateCallNotAllowed {}.abi_encode().into(),
             )));
@@ -288,7 +291,7 @@ where
             .with_actions(self.actions.clone())
             .with_non_creditable_slots(self.non_creditable_slots.clone());
         Some(StorageCtx::enter(&mut storage, || {
-            self.call_tempo(message.code_address, &message.input, message.caller)
+            self.call_tempo(message.call_target, &message.input, message.caller)
         }))
     }
 }
@@ -415,6 +418,7 @@ mod tests {
             kind,
             gas_limit: 1_000_000,
             destination,
+            call_target: code_address,
             code_address,
             input: calldata,
             caller,
@@ -425,6 +429,45 @@ mod tests {
             .execute(evm, &message, &mut gas)
             .expect("Tempo precompile must be registered");
         (result, gas)
+    }
+
+    #[test]
+    fn test_precompile_dispatches_on_call_target_over_delegation_code() {
+        // A state override can put EIP-7702 delegation code on a precompile address. The native
+        // precompile still runs, as in revm, which dispatches on the called address.
+        let delegate = Address::repeat_byte(0xd1);
+        let mut evm = test_evm(TempoHardfork::T3, true);
+        let mut precompiles = test_tempo_precompiles(TempoHardfork::T3);
+        let message = Message::<TestTypes> {
+            gas_limit: 1_000_000,
+            destination: PATH_USD_ADDRESS,
+            call_target: PATH_USD_ADDRESS,
+            code_address: delegate,
+            code: Bytecode::new_eip7702(delegate),
+            input: Bytes::new(),
+            ..Default::default()
+        };
+        assert!(precompiles.contains(&message.call_target));
+        let mut gas = GasTracker::new(message.gas_limit);
+        let result = precompiles
+            .execute(&mut evm, &message, &mut gas)
+            .expect("the precompile at the called address must run");
+        assert!(matches!(result, Err(PrecompileError::Revert(_))));
+
+        // A delegatecall to it is still rejected.
+        let message = Message::<TestTypes> {
+            kind: MessageKind::DelegateCall,
+            destination: Address::repeat_byte(0xca),
+            ..message
+        };
+        let mut gas = GasTracker::new(message.gas_limit);
+        let result = precompiles.execute(&mut evm, &message, &mut gas).unwrap();
+        match result {
+            Err(PrecompileError::Revert(output)) => {
+                DelegateCallNotAllowed::abi_decode(&output).unwrap();
+            }
+            other => panic!("expected DelegateCallNotAllowed, got {other:?}"),
+        }
     }
 
     #[test]

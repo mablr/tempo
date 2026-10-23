@@ -91,7 +91,7 @@ pub(crate) fn test_precompiles(
 }
 
 impl TestContext {
-    fn sync(&mut self) {
+    pub(crate) fn sync(&mut self) {
         let version = tempo_chainspec::gas_params::version(SpecId::OSAKA, self.cfg.spec, false);
         self.evm.set_block_and_execution_config(
             self.block,
@@ -173,6 +173,7 @@ pub(crate) fn call_precompile(
         input: Bytes::copy_from_slice(data),
         value: U256::ZERO,
         destination: target,
+        call_target: bytecode_address,
         code_address: bytecode_address,
         ..Default::default()
     };

@@ -35,9 +35,15 @@ mod tests {
 
     use alloy_primitives::{Bytes, U256, address};
     use alloy_sol_types::SolCall;
-    use evm2::precompiles::PrecompileError;
+    use evm2::{
+        bytecode::Bytecode,
+        evm::precompile::PrecompileProvider,
+        interpreter::{GasTracker, Message},
+        precompiles::PrecompileError,
+    };
     use tempo_chainspec::hardfork::TempoHardfork;
     use tempo_contracts::precompiles::{ITIP403Registry, TIP403_REGISTRY_ADDRESS};
+    use tempo_evm::TempoEvmTypes;
     use tempo_precompiles::{DelegateCallNotAllowed, storage::PrecompileStorageProvider};
 
     use crate::{
@@ -126,6 +132,36 @@ mod tests {
         assert!(output.is_revert());
         assert_eq!(output.bytes, Bytes::from(OnlyPrecompiles {}.abi_encode()));
         Ok(())
+    }
+
+    #[test]
+    fn delegation_code_on_the_precompile_address_does_not_replace_it() {
+        // A state override can put EIP-7702 delegation code on a precompile address. The native
+        // precompile still runs, as in revm, which dispatches on the called address.
+        let mut harness = RegistryHarness::new();
+        harness.ctx.sync();
+        let delegate = Address::repeat_byte(0xd1);
+        let message = Message::<TempoEvmTypes> {
+            gas_limit: u64::MAX,
+            caller: CALLER,
+            input: ITIP403Registry::policyIdCounterCall {}.abi_encode().into(),
+            destination: TIP403_REGISTRY_ADDRESS,
+            call_target: TIP403_REGISTRY_ADDRESS,
+            code_address: delegate,
+            code: Bytecode::new_eip7702(delegate),
+            ..Default::default()
+        };
+        let mut gas = GasTracker::new(message.gas_limit);
+        let result = harness
+            .precompile
+            .execute(harness.ctx.evm(), &message, &mut gas)
+            .expect("the precompile at the called address must run");
+        match result {
+            Err(PrecompileError::Revert(output)) => {
+                assert_eq!(output, Bytes::from(OnlyPrecompiles {}.abi_encode()));
+            }
+            other => panic!("expected OnlyPrecompiles, got {other:?}"),
+        }
     }
 
     #[test]
