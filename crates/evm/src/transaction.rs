@@ -178,7 +178,7 @@ impl TempoEvmTx {
             Self::Legacy { transaction, .. } => transaction.gas_limit(),
             Self::Eip2930(transaction) => transaction.gas_limit(),
             Self::Eip1559(transaction) => transaction.gas_limit(),
-            Self::Eip7702(transaction) => transaction.gas_limit,
+            Self::Eip7702(transaction) => transaction.gas_limit(),
             Self::AA(transaction) => transaction.gas_limit(),
         }
     }
@@ -189,13 +189,7 @@ impl TempoEvmTx {
             Self::Legacy { transaction, .. } => transaction.effective_gas_price(base_fee),
             Self::Eip2930(transaction) => transaction.effective_gas_price(base_fee),
             Self::Eip1559(transaction) => transaction.effective_gas_price(base_fee),
-            Self::Eip7702(transaction) => {
-                base_fee.map_or(transaction.max_fee_per_gas, |base_fee| {
-                    transaction.max_fee_per_gas.min(
-                        u128::from(base_fee).saturating_add(transaction.max_priority_fee_per_gas),
-                    )
-                })
-            }
+            Self::Eip7702(transaction) => transaction.effective_gas_price(base_fee),
             Self::AA(transaction) => transaction.effective_gas_price(base_fee),
         }
     }
