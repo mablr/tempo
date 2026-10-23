@@ -433,8 +433,8 @@ mod tests {
 
     #[test]
     fn test_precompile_dispatches_on_call_target_over_delegation_code() {
-        // A state override can put EIP-7702 delegation code on a precompile address. The native
-        // precompile still runs, as in revm, which dispatches on the called address.
+        // Delegation code on a precompile address, which a state override can set, does not
+        // replace the precompile: dispatch uses the called address.
         let delegate = Address::repeat_byte(0xd1);
         let mut evm = test_evm(TempoHardfork::T3, true);
         let mut precompiles = test_tempo_precompiles(TempoHardfork::T3);

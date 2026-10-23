@@ -136,8 +136,8 @@ mod tests {
 
     #[test]
     fn delegation_code_on_the_precompile_address_does_not_replace_it() {
-        // A state override can put EIP-7702 delegation code on a precompile address. The native
-        // precompile still runs, as in revm, which dispatches on the called address.
+        // Delegation code on a precompile address, which a state override can set, does not
+        // replace the precompile: dispatch uses the called address.
         let mut harness = RegistryHarness::new();
         harness.ctx.sync();
         let delegate = Address::repeat_byte(0xd1);

@@ -2035,15 +2035,14 @@ fn test_negative_refund_counter_refunds_the_cap() {
         .unwrap()
     };
 
-    // revm cast the negative counter to `u64`. Before T7 the refund was then capped at one fifth
-    // of gas used.
+    // Before T7 a negative counter refunds the cap of one fifth of gas used.
     for spec in [TempoHardfork::T4, TempoHardfork::T5, TempoHardfork::T6] {
         assert_eq!(settle(spec, -1_000, 0).refunded, SPENT / 5, "{spec}");
         assert_eq!(settle(spec, 1_000, 0).refunded, 1_000, "{spec}");
     }
 
-    // From T7 the cap is gone, so the whole gas spent was refunded and gas used fell to the
-    // calldata floor.
+    // From T7 there is no cap, so a negative counter refunds all gas spent and gas used falls to
+    // the calldata floor.
     for spec in [TempoHardfork::T7, TempoHardfork::T8] {
         assert_eq!(settle(spec, -1_000, 0).tx_gas_used(), 0, "{spec}");
         assert_eq!(settle(spec, -1_000, FLOOR).tx_gas_used(), FLOOR, "{spec}");
