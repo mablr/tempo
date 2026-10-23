@@ -6,11 +6,10 @@
 
 use alloy_consensus::TxReceipt as _;
 use alloy_eip7928::{BlockAccessIndex, BlockAccessList};
-use alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS;
 use alloy_sol_types::{SolCall as _, SolEvent as _};
 use evm2::{
     SpecId, TxResultWithState,
-    evm::{Bal, SystemTx},
+    evm::{Bal, HISTORY_STORAGE_ADDRESS, SystemTx},
 };
 use reth_chainspec::EthereumHardforks as _;
 use reth_evm::{
