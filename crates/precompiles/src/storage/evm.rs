@@ -426,6 +426,7 @@ where
 
         let was_empty = {
             let mut account = self.evm.state_mut().account(&address)?;
+            account.warm();
             let was_empty = account.get().is_none_or(AccountInfo::is_empty);
             account.set_code_slow(code);
             was_empty
