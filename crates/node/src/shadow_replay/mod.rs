@@ -899,6 +899,7 @@ mod tests {
         let slot = U256::ONE;
         let original = AccountInfo {
             balance: U256::from(10),
+            nonce: 1,
             ..Default::default()
         };
         let mut pending = PendingState::default();
