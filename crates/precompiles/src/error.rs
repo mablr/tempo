@@ -525,6 +525,24 @@ mod tests {
     }
 
     #[test]
+    fn storage_failures_stay_fatal_handler_errors() {
+        let database = DatabaseError::new(core::fmt::Error, true);
+        assert!(matches!(
+            HandlerError::from(TempoPrecompileError::Database(database)),
+            HandlerError::Database(_)
+        ));
+        assert!(matches!(
+            HandlerError::from(TempoPrecompileError::Fatal("db".into())),
+            HandlerError::Fatal(_)
+        ));
+        // Protocol failures stay transaction-level errors.
+        assert!(matches!(
+            HandlerError::from(TempoPrecompileError::OutOfGas),
+            HandlerError::External(_)
+        ));
+    }
+
+    #[test]
     fn test_add_errors_to_registry_populates_registry() {
         let mut registry: TempoPrecompileErrorRegistry = HashMap::new();
 
