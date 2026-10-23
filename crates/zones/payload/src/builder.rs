@@ -265,6 +265,7 @@ where
             ),
             TempoImport::CheckpointOnly(_) => None,
         };
+
         // Execute advanceTempo system transaction — exactly one per zone block.
         let opening_tx = match tempo_import {
             TempoImport::Full(prepared) => build_advance_tempo_tx(prepared, chain_id),

@@ -364,7 +364,7 @@ impl<'a> BlockExecutor for ZoneBlockExecutor<'a> {
 mod tests {
     use super::{
         ADVANCE_TEMPO_SELECTOR, ZONE_INBOX_ADDRESS, ZONE_OUTBOX_ADDRESS, ZoneBlockExecutor,
-        ZoneBlockPhase, ZoneTransactionKind, ZoneTxResult,
+        ZoneBlockPhase, ZoneTransactionKind,
     };
 
     use alloy_consensus::{Header, Sealable as _, Signed, TxLegacy};
@@ -377,7 +377,7 @@ mod tests {
     use alloy_primitives::{Address, B256, Bytes, Log, Signature, U256};
     use alloy_sol_types::{SolCall, SolEvent};
     use evm2::{
-        EvmFeatures, TxResult, TxResultWithState,
+        EvmFeatures,
         bytecode::Bytecode,
         evm::{
             AccountInfo, BUILDER_DEPOSIT_REQUEST_ADDRESS, BUILDER_EXIT_REQUEST_ADDRESS,
@@ -387,7 +387,7 @@ mod tests {
     };
     use reth_chainspec::EthChainSpec as _;
     use reth_evm::{BlockExecutor, BlockExecutorFactory, InternalBlockExecutionError};
-    use reth_evm_ethereum::{EthBlockExecutionCtx, EthTransactionResultWithState};
+    use reth_evm_ethereum::EthBlockExecutionCtx;
     use reth_primitives_traits::Recovered;
     use tempo_chainspec::{hardfork::TempoHardfork, spec::DEV};
     use tempo_contracts::{
@@ -397,7 +397,7 @@ mod tests {
             TempoAdvanced,
         },
     };
-    use tempo_evm::{TempoBlockExecutionCtx, TempoEvmEnv, TempoEvmTypes, TempoTxEnv};
+    use tempo_evm::{TempoBlockExecutionCtx, TempoEvmEnv, TempoTxEnv};
     use tempo_precompiles::{
         DEFAULT_FEE_TOKEN, TIP_FEE_MANAGER_ADDRESS,
         storage::{ContractStorage, Handler, StorageCtx, hashmap::HashMapStorageProvider},
@@ -673,24 +673,10 @@ mod tests {
         };
         let mut executor = ZoneBlockExecutor::new(evm, ctx, &chain_spec);
         executor.phase = ZoneBlockPhase::Executing;
-        let receipt = withdrawal_requested_receipt(ZONE_OUTBOX_ADDRESS);
         executor
-            .commit_transaction(ZoneTxResult {
-                inner: EthTransactionResultWithState::new(
-                    TxResultWithState {
-                        result: TxResult::<TempoEvmTypes> {
-                            status: receipt.success,
-                            logs: receipt.logs,
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    },
-                    receipt.tx_type,
-                    0,
-                ),
-                next_phase: ZoneBlockPhase::Executing,
-            })
-            .unwrap();
+            .inner
+            .receipts
+            .push(withdrawal_requested_receipt(ZONE_OUTBOX_ADDRESS));
 
         let error = match executor.finish() {
             Ok(_) => panic!("withdrawal request block without finalization was accepted"),
@@ -804,29 +790,12 @@ mod tests {
             } else {
                 event.encode_log_data()
             };
-            let receipt = TempoReceipt {
+            executor.inner.receipts.push(TempoReceipt {
                 tx_type: TempoTxType::Legacy,
                 success: true,
                 cumulative_gas_used: 0,
                 logs: vec![Log { address, data }],
-            };
-            executor
-                .commit_transaction(ZoneTxResult {
-                    inner: EthTransactionResultWithState::new(
-                        TxResultWithState {
-                            result: TxResult::<TempoEvmTypes> {
-                                status: receipt.success,
-                                logs: receipt.logs,
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        },
-                        receipt.tx_type,
-                        0,
-                    ),
-                    next_phase: phase,
-                })
-                .unwrap();
+            });
 
             let result = executor.finish();
             if must_reject {
