@@ -26,7 +26,6 @@ use tempo_primitives::{TempoBlockEnv, TempoBlockExt};
 pub struct EvmPrecompileStorageProvider<'evm, 'gas, 'db, T: EvmTypes> {
     evm: &'evm mut Evm<'db, T>,
     version: Version,
-    block: TempoBlockEnv,
     gas_tracker: GasTrackerStorage<'gas>,
     spec: TempoHardfork,
     is_static: bool,
@@ -48,12 +47,8 @@ where
         spec: TempoHardfork,
         is_static: bool,
     ) -> Self {
-        let version = *evm.version();
-        let block = *evm.block();
         Self::with_gas_tracker(
             evm,
-            version,
-            block,
             GasTrackerStorage::Borrowed(gas_tracker),
             spec,
             is_static,
@@ -62,12 +57,8 @@ where
 
     /// Creates a non-static storage provider with the maximum gas limit.
     pub fn new_max_gas(evm: &'evm mut Evm<'db, T>, spec: TempoHardfork) -> Self {
-        let version = *evm.version();
-        let block = *evm.block();
         Self::with_gas_tracker(
             evm,
-            version,
-            block,
             GasTrackerStorage::Owned(GasTracker::new(u64::MAX)),
             spec,
             false,
@@ -76,16 +67,13 @@ where
 
     fn with_gas_tracker(
         evm: &'evm mut Evm<'db, T>,
-        version: Version,
-        block: TempoBlockEnv,
         gas_tracker: GasTrackerStorage<'gas>,
         spec: TempoHardfork,
         is_static: bool,
     ) -> Self {
         Self {
+            version: *evm.version(),
             evm,
-            version,
-            block,
             gas_tracker,
             spec,
             is_static,
@@ -408,7 +396,7 @@ where
     }
 
     fn block_env(&self) -> &TempoBlockEnv {
-        &self.block
+        self.evm.block()
     }
 
     #[inline]
@@ -921,8 +909,6 @@ mod tests {
                 GasTracker::new_with_execution_gas_and_reservoir(gas_limit, reservoir);
             EvmPrecompileStorageProvider::with_gas_tracker(
                 &mut self.evm,
-                self.version,
-                TempoBlockEnv::default(),
                 GasTrackerStorage::Borrowed(&mut self.gas_tracker),
                 self.spec,
                 false,
@@ -939,8 +925,6 @@ mod tests {
         fn provider_max_gas(&mut self) -> EvmPrecompileStorageProvider<'_, '_, 'static, TestTypes> {
             EvmPrecompileStorageProvider::with_gas_tracker(
                 &mut self.evm,
-                self.version,
-                TempoBlockEnv::default(),
                 GasTrackerStorage::Owned(GasTracker::new(u64::MAX)),
                 self.spec,
                 false,
@@ -950,8 +934,6 @@ mod tests {
         fn static_provider(&mut self) -> EvmPrecompileStorageProvider<'_, '_, 'static, TestTypes> {
             EvmPrecompileStorageProvider::with_gas_tracker(
                 &mut self.evm,
-                self.version,
-                TempoBlockEnv::default(),
                 GasTrackerStorage::Owned(GasTracker::new(u64::MAX)),
                 self.spec,
                 true,
