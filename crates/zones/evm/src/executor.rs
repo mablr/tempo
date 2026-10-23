@@ -7,6 +7,7 @@
 use alloy_consensus::TxReceipt as _;
 use alloy_eip7928::{BlockAccessIndex, BlockAccessList};
 use alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS;
+use alloy_primitives::{Bytes, TxKind};
 use alloy_sol_types::{SolCall as _, SolEvent as _};
 use evm2::{
     SpecId, TxResultWithState,
@@ -51,7 +52,7 @@ impl ZoneBlockPhase {
             .into());
         }
 
-        let tx_kind = ZoneTransactionKind::classify(tx);
+        let tx_kind = ZoneTransactionKind::classify(tx.is_system_tx(), || tx.calls());
 
         match (self, tx_kind) {
             (Self::AwaitingAdvanceTempo, ZoneTransactionKind::AdvanceTempo) => Ok(Self::Executing),
@@ -107,25 +108,28 @@ pub(crate) enum ZoneTransactionKind {
 }
 
 impl ZoneTransactionKind {
-    pub(crate) fn classify(tx: &TempoTxEnvelope) -> Self {
-        if !tx.is_system_tx() {
+    pub(crate) fn classify<'a, I>(is_system_tx: bool, calls: impl Fn() -> I) -> Self
+    where
+        I: Iterator<Item = (TxKind, &'a Bytes)>,
+    {
+        if !is_system_tx {
             return Self::Regular;
         }
 
-        if tx.calls().any(|(kind, input)| {
+        if calls().any(|(kind, input)| {
             kind.to() == Some(&ZONE_INBOX_ADDRESS) && input.starts_with(&ADVANCE_TEMPO_SELECTOR)
         }) {
             return Self::AdvanceTempo;
         }
 
-        if tx.calls().any(|(kind, input)| {
+        if calls().any(|(kind, input)| {
             kind.to() == Some(&ZONE_INBOX_ADDRESS)
                 && input.starts_with(&ADVANCE_TEMPO_HEADERS_SELECTOR)
         }) {
             return Self::AdvanceTempoHeaders;
         }
 
-        if tx.calls().any(|(kind, input)| {
+        if calls().any(|(kind, input)| {
             kind.to() == Some(&ZONE_OUTBOX_ADDRESS)
                 && input.starts_with(&IZoneOutbox::finalizeWithdrawalBatchCall::SELECTOR)
         }) {
@@ -977,11 +981,15 @@ mod tests {
         );
 
         assert_eq!(
-            ZoneTransactionKind::classify(&advance_lookalike),
+            ZoneTransactionKind::classify(advance_lookalike.is_system_tx(), || {
+                advance_lookalike.calls()
+            }),
             ZoneTransactionKind::Regular
         );
         assert_eq!(
-            ZoneTransactionKind::classify(&finalize_lookalike),
+            ZoneTransactionKind::classify(finalize_lookalike.is_system_tx(), || {
+                finalize_lookalike.calls()
+            }),
             ZoneTransactionKind::Regular
         );
         assert_eq!(
