@@ -502,6 +502,7 @@ mod tests {
                 .0
             };
 
+            // Static calls into mutating functions should fail
             for calldata in [
                 ITIP20::transferCall {
                     to: Address::random(),
@@ -528,6 +529,7 @@ mod tests {
                 }
             }
 
+            // Static calls into view functions should succeed
             let result = call_static(
                 ITIP20::balanceOfCall {
                     account: Address::random(),
@@ -607,7 +609,8 @@ mod tests {
         let decoded = tempo_contracts::precompiles::UnknownFunctionSelector::abi_decode(&unknown)
             .expect("T1: expected UnknownFunctionSelector error");
         assert_eq!(decoded.selector.as_slice(), &[0xAA, 0xAA, 0xAA, 0xAA]);
-        // Verify gas is tracked for both cases (unknown selector may cost slightly more due `INPUT_PER_WORD_COST`)
+        // Verify gas is tracked for both cases (unknown selector may cost slightly more due to its
+        // input length).
         assert!(unknown_gas.spent() >= empty_gas.spent());
 
         // Pre-T1 (T0): invalid calldata should return a halted output
