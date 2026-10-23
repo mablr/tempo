@@ -2006,10 +2006,11 @@ fn test_refund_cap_removed_on_t7() {
 }
 
 #[test]
-fn test_pre_t7_negative_refund_counter_refunds_the_cap() {
+fn test_negative_refund_counter_refunds_the_cap() {
     const SPENT: u64 = 100_000;
+    const FLOOR: u64 = 30_000;
 
-    let refunded_for_spec = |spec: TempoHardfork, refund: i64| -> u64 {
+    let settle = |spec: TempoHardfork, refund: i64, floor_gas: u64| {
         let mut evm = test_evm(spec);
         evm.ext_mut().resolved_fee_token = Some(ResolvedFeeToken::Selected(DEFAULT_FEE_TOKEN));
         let mut result = MessageResult::<TempoEvmTypes> {
@@ -2025,20 +2026,28 @@ fn test_pre_t7_negative_refund_counter_refunds_the_cap() {
                 caller: SIGNER,
                 gas_price: U256::ZERO,
                 gas_limit: SPENT,
-                floor_gas: 0,
+                floor_gas,
                 initial_state_gas: 0,
                 state_refund: 0,
                 result,
             },
         )
         .unwrap()
-        .refunded
     };
 
-    // revm cast the negative counter to `u64`, so the refund was capped at one fifth of gas used.
+    // revm cast the negative counter to `u64`. Before T7 the refund was then capped at one fifth
+    // of gas used.
     for spec in [TempoHardfork::T4, TempoHardfork::T5, TempoHardfork::T6] {
-        assert_eq!(refunded_for_spec(spec, -1_000), SPENT / 5, "{spec}");
-        assert_eq!(refunded_for_spec(spec, 1_000), 1_000, "{spec}");
+        assert_eq!(settle(spec, -1_000, 0).refunded, SPENT / 5, "{spec}");
+        assert_eq!(settle(spec, 1_000, 0).refunded, 1_000, "{spec}");
+    }
+
+    // From T7 the cap is gone, so the whole gas spent was refunded and gas used fell to the
+    // calldata floor.
+    for spec in [TempoHardfork::T7, TempoHardfork::T8] {
+        assert_eq!(settle(spec, -1_000, 0).tx_gas_used(), 0, "{spec}");
+        assert_eq!(settle(spec, -1_000, FLOOR).tx_gas_used(), FLOOR, "{spec}");
+        assert_eq!(settle(spec, 1_000, 0).refunded, 1_000, "{spec}");
     }
 }
 
