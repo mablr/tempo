@@ -2006,6 +2006,43 @@ fn test_refund_cap_removed_on_t7() {
 }
 
 #[test]
+fn test_pre_t7_negative_refund_counter_refunds_the_cap() {
+    const SPENT: u64 = 100_000;
+
+    let refunded_for_spec = |spec: TempoHardfork, refund: i64| -> u64 {
+        let mut evm = test_evm(spec);
+        evm.ext_mut().resolved_fee_token = Some(ResolvedFeeToken::Selected(DEFAULT_FEE_TOKEN));
+        let mut result = MessageResult::<TempoEvmTypes> {
+            stop: InstrStop::Stop,
+            gas: GasTracker::new_spent_with_reservoir(SPENT, 0),
+            ..MessageResult::<TempoEvmTypes>::default()
+        };
+        result.gas.record_refund(refund);
+        TempoHandlerHooks::settle_transaction(
+            &mut evm,
+            &legacy_env(TxKind::Call(Address::ZERO), Bytes::new()),
+            GasSettlement {
+                caller: SIGNER,
+                gas_price: U256::ZERO,
+                gas_limit: SPENT,
+                floor_gas: 0,
+                initial_state_gas: 0,
+                state_refund: 0,
+                result,
+            },
+        )
+        .unwrap()
+        .refunded
+    };
+
+    // revm cast the negative counter to `u64`, so the refund was capped at one fifth of gas used.
+    for spec in [TempoHardfork::T4, TempoHardfork::T5, TempoHardfork::T6] {
+        assert_eq!(refunded_for_spec(spec, -1_000), SPENT / 5, "{spec}");
+        assert_eq!(refunded_for_spec(spec, 1_000), 1_000, "{spec}");
+    }
+}
+
+#[test]
 fn test_multicall_gas_refund_accounting() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 

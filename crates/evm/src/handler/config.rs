@@ -243,6 +243,11 @@ impl TxHandlerHooks<TempoEvmTypes> for TempoHandlerHooks {
         let gas_price = u128::try_from(gas.gas_price)
             .map_err(|_| HandlerError::Fatal("effective gas price does not fit u128".into()))?;
         let gas_limit = gas.gas_limit;
+        // Before T7, revm cast a net-negative refund counter to `u64` before applying the
+        // EIP-3529 cap, which refunded the full cap; evm2 refunds nothing.
+        if !host.config_spec_id().is_t7() && gas.result.gas.refunded() < 0 {
+            gas.result.gas.set_refunded(i64::MAX);
+        }
         let mut result = finalize_gas(host, gas)?;
         if !host.feature(EvmFeatures::FEE_CHARGE) {
             return Ok(result);
