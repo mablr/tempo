@@ -17,7 +17,7 @@ use tempo_primitives::{TempoBlockEnv, TempoBlockExt};
 use crate::{
     error::{IntoPrecompileResult, Result, TempoPrecompileError},
     storage::{
-        PrecompileStorageProvider, StorageActions,
+        ConfigCommitmentWriteGas, PrecompileStorageProvider, StorageActions,
         evm::{EvmPrecompileStorageProvider, EvmStorageExt},
     },
 };
@@ -326,6 +326,28 @@ impl StorageCtx {
     /// Returns a [`PrecompileResult`] constructed from the given error.
     pub fn error_result(&self, error: impl IntoPrecompileResult) -> PrecompileResult {
         error.into_precompile_result()
+    }
+
+    /// Reads the account commitment with normal account-access gas.
+    pub fn config_commitment(&self, address: Address) -> Result<B256> {
+        Self::try_with_storage(|s| s.config_commitment(address))
+    }
+
+    /// Writes an authorized commitment using the provider's account journal.
+    pub fn set_config_commitment(
+        &mut self,
+        address: Address,
+        commitment: B256,
+        gas: ConfigCommitmentWriteGas,
+    ) -> Result<()> {
+        Self::try_with_storage(|s| s.set_config_commitment(address, commitment, gas))
+    }
+
+    /// Returns whether `address` is a retired root key (TIP-1112): from T14, an address with a
+    /// nonzero configuration commitment no longer acts through its own key. Reads the commitment
+    /// at call time, so a migration earlier in the block counts.
+    pub fn is_retired_root(&self, address: Address) -> Result<bool> {
+        Ok(self.spec().is_t14() && !self.config_commitment(address)?.is_zero())
     }
 }
 

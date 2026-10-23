@@ -2,7 +2,6 @@ use super::*;
 
 use alloy_primitives::{B256, Bytes, U256, address, keccak256};
 use alloy_sol_types::{SolCall, SolError, SolValue};
-use revm::precompile::PrecompileResult;
 use tempo_chainspec::hardfork::TempoHardfork;
 use tempo_contracts::{
     precompiles::UnknownFunctionSelector,
@@ -21,8 +20,8 @@ use tempo_primitives::TempoHeader;
 use zone_primitives::constants::ZONE_OUTBOX_ADDRESS;
 
 use crate::test_utils::{
-    EncryptedDepositFixture, MockL1Reader, TestContext, TestPrecompiles, build_plaintext,
-    call_precompile, compressed_x_and_parity, encrypt_plaintext, test_context,
+    EncryptedDepositFixture, MockL1Reader, PrecompileResult, TestContext, TestPrecompiles,
+    build_plaintext, call_precompile, compressed_x_and_parity, encrypt_plaintext, test_context,
     test_context_with_hardfork, test_precompiles, test_storage_provider,
 };
 

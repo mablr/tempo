@@ -13,9 +13,7 @@ use evm2::{
     evm::{AccountExtension, AccountInfo},
 };
 use reth_evm::Database;
-use reth_execution_types::native_account;
-use reth_trie_common::{HashedPostState, KeccakKeyHasher};
-use revm::database::BundleState;
+use reth_trie_common::{HashedPostState, KeccakKeyHasher, bundle_state::BundleState};
 use tempo_primitives::TempoHeader;
 use zone_precompiles::{L1StateError, L1StorageReader};
 
@@ -101,8 +99,7 @@ impl WitnessDatabase {
 
         // Keep database read caches coherent with the newly advanced trie.
         for (address, account) in bundle_state.state() {
-            self.accounts
-                .insert(*address, account.info.as_ref().map(native_account));
+            self.accounts.insert(*address, account.info.clone());
 
             if account.status.is_storage_known() {
                 self.storage.remove(address);

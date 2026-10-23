@@ -2,8 +2,8 @@ use super::*;
 
 mod regressions;
 use crate::{
-    FeeTokenResolver, ProtocolFeeContext, ProtocolFeeManager, TempoBlockEnv, TempoEvmExt,
-    TempoEvmTx, TempoFeeManager, signature_gas::P256_VERIFY_GAS, tempo_tx_registry,
+    FeeTokenResolver, ProtocolFeeContext, ProtocolFeeManager, ResolvedFeeToken, TempoBlockEnv,
+    TempoEvmExt, TempoEvmTx, TempoFeeManager, tempo_tx_registry,
 };
 use alloy_consensus::transaction::Recovered;
 use alloy_primitives::{B256, Bytes, Signature};
@@ -90,12 +90,14 @@ use evm2::evm::AccountInfo;
 use std::sync::Arc;
 use tempo_contracts::precompiles::{DEFAULT_FEE_TOKEN, TIP20Error, TIPFeeAMMError};
 use tempo_precompiles::{
-    TIP_FEE_MANAGER_ADDRESS,
+    ECRECOVER_GAS, TIP_FEE_MANAGER_ADDRESS,
     storage::{ContractStorage, Handler, StorageActions},
     tip_fee_manager::TipFeeManager,
     tip20::TIP20Token,
 };
-use tempo_primitives::{TempoAddressExt, TempoTxEnvelope, transaction::calc_gas_balance_spending};
+use tempo_primitives::{
+    TempoAddressExt, TempoTxEnvelope, gas::P256_VERIFY_GAS, transaction::calc_gas_balance_spending,
+};
 
 fn legacy_env(to: TxKind, input: Bytes) -> TempoTxEnv {
     Recovered::new_unchecked(
@@ -183,8 +185,10 @@ impl ProtocolFeeManager for ValidatorTokenLookupFailsFeeManager {
         _fee_payer: Address,
         _max_fee: U256,
         _spec: TempoHardfork,
-    ) -> tempo_precompiles::error::Result<Address> {
-        Ok(tx.evm_tx().fee_token().unwrap_or(DEFAULT_FEE_TOKEN))
+    ) -> tempo_precompiles::error::Result<ResolvedFeeToken> {
+        Ok(ResolvedFeeToken::Selected(
+            tx.evm_tx().fee_token().unwrap_or(DEFAULT_FEE_TOKEN),
+        ))
     }
 
     fn get_validator_token(
@@ -804,8 +808,8 @@ fn test_aa_gas_p256_signature() {
     )
     .0;
 
-    // Expected: normal tx + P256_VERIFY_GAS
-    let expected = base_gas + P256_VERIFY_GAS;
+    // Expected: normal tx + P256 verification, minus the ecrecover already in the base cost
+    let expected = base_gas + P256_VERIFY_GAS - ECRECOVER_GAS;
     assert_eq!((gas.0 + gas.1), expected,);
 }
 
@@ -1963,7 +1967,7 @@ fn test_refund_cap_removed_on_t7() {
 
     let refunded_for_spec = |spec: TempoHardfork| -> u64 {
         let mut evm = test_evm(spec);
-        evm.ext_mut().resolved_fee_token = Some(DEFAULT_FEE_TOKEN);
+        evm.ext_mut().resolved_fee_token = Some(ResolvedFeeToken::Selected(DEFAULT_FEE_TOKEN));
         let mut result = MessageResult::<TempoEvmTypes> {
             stop: InstrStop::Stop,
             gas: GasTracker::new_spent_with_reservoir(SPENT, 0),
@@ -2198,9 +2202,9 @@ proptest! {
             webauthn_data: Bytes::from(vec![0u8; webauthn_data_len]),
         });
 
-        let secp_gas = primitive_signature_verification_gas(&secp_sig);
-        let p256_gas = primitive_signature_verification_gas(&p256_sig);
-        let webauthn_gas = primitive_signature_verification_gas(&webauthn_sig);
+        let secp_gas = secp_sig.intrinsic_verification_gas();
+        let p256_gas = p256_sig.intrinsic_verification_gas();
+        let webauthn_gas = webauthn_sig.intrinsic_verification_gas();
 
         prop_assert!(secp_gas <= p256_gas, "secp256k1 should be <= p256");
         prop_assert!(p256_gas <= webauthn_gas, "p256 should be <= webauthn");
@@ -3122,10 +3126,13 @@ mod keychain {
                         );
                     }
                     StorageCtx::enter_evm_without_tip1060_accounting(&mut evm, || {
-                        assert_eq!(
-                            AccountKeychain::new().is_active_key(user, key).unwrap(),
-                            root_signed
-                        );
+                        let key_info = AccountKeychain::new()
+                            .get_key(tempo_precompiles::account_keychain::getKeyCall {
+                                account: user,
+                                keyId: key,
+                            })
+                            .unwrap();
+                        assert_eq!(key_info.keyId == key, root_signed);
                     });
                 }
             }
@@ -4147,7 +4154,7 @@ fn test_state_gas_aa_auth_list_nonce_zero() {
     let gas_limit = 1_000_000;
     let (remaining, reservoir) =
         initial_gas_and_reservoir(evm.version(), gas_limit, regular, state);
-    evm.ext_mut().resolved_fee_token = Some(DEFAULT_FEE_TOKEN);
+    evm.ext_mut().resolved_fee_token = Some(ResolvedFeeToken::Selected(DEFAULT_FEE_TOKEN));
     let settled = TempoHandlerHooks::settle_transaction(
         &mut evm,
         &aa_env,
@@ -4439,7 +4446,7 @@ fn test_state_gas_batch_create_accounting() {
         );
         assert_eq!(result.gas.reservoir(), create_state_gas - state_spent);
 
-        evm.ext_mut().resolved_fee_token = Some(DEFAULT_FEE_TOKEN);
+        evm.ext_mut().resolved_fee_token = Some(ResolvedFeeToken::Selected(DEFAULT_FEE_TOKEN));
         let settled = TempoHandlerHooks::settle_transaction(
             &mut evm,
             &legacy_env(TxKind::Create, Bytes::new()),

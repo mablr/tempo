@@ -4,7 +4,7 @@ use crate::{
 };
 use alloy_consensus::{Transaction, transaction::TxHashRef};
 use alloy_eip7928::{BlockAccessIndex, BlockAccessList};
-use alloy_primitives::{Address, B256, Bytes, KECCAK256_EMPTY, U256};
+use alloy_primitives::{Address, B256, Bytes, U256};
 use alloy_rlp::Decodable;
 use alloy_sol_types::SolCall;
 use commonware_codec::ReadExt;
@@ -264,7 +264,7 @@ impl<'a> TempoBlockExecutor<'a> {
         };
         if original
             .as_ref()
-            .is_some_and(|info| info.code_hash != KECCAK256_EMPTY)
+            .is_some_and(|info| !info.is_empty_code_hash())
         {
             return Ok(());
         }
@@ -305,7 +305,7 @@ impl<'a> TempoBlockExecutor<'a> {
         // post-genesis installation.
         if original
             .as_ref()
-            .is_some_and(|info| info.code_hash != KECCAK256_EMPTY)
+            .is_some_and(|info| !info.is_empty_code_hash())
         {
             return Ok(());
         }
@@ -562,6 +562,35 @@ impl<'a> BlockExecutor for TempoBlockExecutor<'a> {
             .is_some_and(|withdrawals| !withdrawals.is_empty())
         {
             return Err(BlockValidationError::msg("withdrawals are not permitted").into());
+        }
+
+        // Consensus rejects proposals without a consensus context, so every proposed block
+        // carries a proposer key. Resolved before any system call so reads see parent state.
+        if self.evm().config_spec_id().is_t14()
+            && let Some(proposer) = self.evm().block().ext.proposer_public_key
+        {
+            let proposer = B256::from(proposer);
+            let spec = self.evm().config_spec_id();
+            let number = self.evm().block().number;
+            let expected = crate::TempoStateAccess::proposer_fee_recipient(
+                self.evm_mut(),
+                spec,
+                number,
+                proposer,
+            )
+            .map_err(BlockExecutionError::other)?
+            .ok_or_else(|| {
+                BlockValidationError::msg(format!(
+                    "proposer {proposer} has no ValidatorConfigV2 entry"
+                ))
+            })?;
+            let beneficiary = self.evm().block().beneficiary;
+            if beneficiary != expected {
+                return Err(BlockValidationError::msg(format!(
+                    "block beneficiary {beneficiary} does not match proposer fee recipient {expected}"
+                ))
+                .into());
+            }
         }
 
         if self.evm().config_spec_id().is_t13() {
@@ -827,7 +856,9 @@ mod tests {
         eip7002::WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS,
         eip7251::CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS,
     };
-    use alloy_primitives::{Bytes, Log, Signature, TxKind, address, bytes::BytesMut, keccak256};
+    use alloy_primitives::{
+        Bytes, Keccak256, Log, Signature, TxKind, address, bytes::BytesMut, keccak256,
+    };
     use alloy_rlp::Encodable;
     use commonware_codec::Encode as _;
     use commonware_cryptography::{
@@ -849,6 +880,7 @@ mod tests {
     use rand::SeedableRng as _;
     use reth_chainspec::{EthChainSpec, EthereumHardfork, ForkCondition};
     use std::{
+        collections::HashMap,
         iter::repeat_with,
         sync::{Arc, Mutex},
     };
@@ -864,6 +896,10 @@ mod tests {
         },
     };
     use tempo_dkg_onchain_artifacts::OnchainDkgOutcome;
+    use tempo_precompiles::{
+        storage::{StorageCtx, hashmap::HashMapStorageProvider},
+        validator_config_v2::{IValidatorConfigV2, VALIDATOR_NS_ADD, ValidatorConfigV2},
+    };
     use tempo_primitives::{
         SubBlockMetadata, TempoSignature, TempoTransaction, TempoTxType,
         subblock::{SubBlockVersion, TEMPO_SUBBLOCK_NONCE_KEY_PREFIX},
@@ -1218,6 +1254,97 @@ mod tests {
         assert_eq!(
             executor.finish().err().unwrap().to_string(),
             "incentive gas limit exceeded"
+        );
+    }
+
+    #[test]
+    fn test_t14_rejects_beneficiary_not_matching_proposer_fee_recipient() {
+        let chainspec = system_calls_chainspec();
+        let registered = PrivateKey::from_seed(1);
+        let registered_key = B256::from_slice(&registered.public_key());
+        let unregistered_key = B256::from_slice(&PrivateKey::from_seed(2).public_key());
+        let fee_recipient = Address::repeat_byte(0xFE);
+        let attacker = Address::repeat_byte(0xBA);
+
+        // Registers `registered` in ValidatorConfigV2 at height 0 with `fee_recipient`.
+        let mut storage = HashMapStorageProvider::new(1);
+        StorageCtx::enter(&mut storage, || -> eyre::Result<()> {
+            let owner = Address::repeat_byte(0xAA);
+            let validator_address = Address::repeat_byte(0x11);
+            let (ingress, egress) = ("192.168.1.1:8000", "192.168.1.1");
+            let mut hasher = Keccak256::new();
+            hasher.update(1u64.to_be_bytes());
+            hasher.update(VALIDATOR_CONFIG_V2_ADDRESS.as_slice());
+            hasher.update(validator_address.as_slice());
+            hasher.update([ingress.len() as u8]);
+            hasher.update(ingress.as_bytes());
+            hasher.update([egress.len() as u8]);
+            hasher.update(egress.as_bytes());
+            hasher.update(fee_recipient.as_slice());
+            let signature = registered.sign(VALIDATOR_NS_ADD, hasher.finalize().as_slice());
+
+            let mut config = ValidatorConfigV2::new();
+            config.initialize(owner)?;
+            config.add_validator(
+                owner,
+                IValidatorConfigV2::addValidatorCall {
+                    validatorAddress: validator_address,
+                    publicKey: registered_key,
+                    ingress: ingress.to_string(),
+                    egress: egress.to_string(),
+                    feeRecipient: fee_recipient,
+                    signature: signature.encode().to_vec().into(),
+                },
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let mut accounts = HashMap::<Address, HashMap<U256, U256>>::new();
+        for (address, slot, value) in storage.into_storage() {
+            accounts.entry(address).or_default().insert(slot, value);
+        }
+
+        let pre_execution = |fork, proposer: B256, beneficiary| {
+            let mut db = InMemoryDB::default();
+            for (address, storage) in &accounts {
+                db.insert_account_info(address, AccountInfo::default());
+                for (slot, value) in storage {
+                    db.insert_account_storage(address, slot, value);
+                }
+            }
+            let mut executor = TestExecutorBuilder::default()
+                .with_block_number(2)
+                .with_spec(fork)
+                .build(db, &chainspec);
+            let mut block = *executor.evm().block();
+            block.beneficiary = beneficiary;
+            block.ext.proposer_public_key = Some(proposer.try_into().unwrap());
+            executor.evm_mut().set_block(block);
+            executor
+                .apply_pre_execution_changes()
+                .map_err(|e| e.to_string())
+        };
+
+        assert_eq!(
+            pre_execution(TempoHardfork::T14, registered_key, fee_recipient),
+            Ok(())
+        );
+        assert_eq!(
+            pre_execution(TempoHardfork::T14, registered_key, attacker),
+            Err(format!(
+                "block beneficiary {attacker} does not match proposer fee recipient {fee_recipient}"
+            ))
+        );
+        // A proposer without a V2 record is rejected regardless of the beneficiary.
+        assert_eq!(
+            pre_execution(TempoHardfork::T14, unregistered_key, Address::ZERO),
+            Err(format!(
+                "proposer {unregistered_key} has no ValidatorConfigV2 entry"
+            ))
+        );
+        assert_eq!(
+            pre_execution(TempoHardfork::T13, registered_key, attacker),
+            Ok(())
         );
     }
 
@@ -2298,7 +2425,7 @@ mod tests {
             .overlay_db()
             .account_info(&VALIDATOR_CONFIG_V2_ADDRESS)
             .unwrap();
-        assert_ne!(info.code_hash, KECCAK256_EMPTY);
+        assert!(!info.is_empty_code_hash());
     }
 
     #[test]
@@ -2318,7 +2445,7 @@ mod tests {
             .overlay_db()
             .account_info(&SIGNATURE_VERIFIER_ADDRESS)
             .unwrap();
-        assert_ne!(info.code_hash, KECCAK256_EMPTY);
+        assert!(!info.is_empty_code_hash());
     }
 
     #[test]
@@ -2338,7 +2465,7 @@ mod tests {
             .overlay_db()
             .account_info(&RECEIVE_POLICY_GUARD_ADDRESS)
             .unwrap();
-        assert_ne!(info.code_hash, KECCAK256_EMPTY);
+        assert!(!info.is_empty_code_hash());
     }
 
     #[test]
@@ -2357,7 +2484,7 @@ mod tests {
             .overlay_db()
             .account_info(&SIGNATURE_VERIFIER_ADDRESS);
         assert!(
-            info.is_none() || info.unwrap().code_hash == KECCAK256_EMPTY,
+            info.is_none_or(|info| info.is_empty_code_hash()),
             "SignatureVerifier code should not be deployed before T3"
         );
     }
@@ -2384,7 +2511,7 @@ mod tests {
             .overlay_db()
             .account_info(&addr)
             .unwrap();
-        assert_ne!(info.code_hash, KECCAK256_EMPTY);
+        assert!(!info.is_empty_code_hash());
 
         // Verify the state hook was called exactly once with the correct address.
         let calls = hook_calls.lock().unwrap();
@@ -2428,7 +2555,7 @@ mod tests {
         assert_eq!(calls.len(), 1, "state hook should be called exactly once");
         assert_eq!(
             calls[0].account(&addr).unwrap().original.clone(),
-            Some(reth_execution_types::revm_account(&original_info)),
+            Some(original_info),
             "state hook account should preserve existing original_info"
         );
     }

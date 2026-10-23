@@ -35,7 +35,7 @@ mod tests {
 
     use alloy_primitives::{Bytes, U256, address};
     use alloy_sol_types::SolCall;
-    use revm::precompile::{PrecompileError, PrecompileOutput};
+    use evm2::precompiles::PrecompileError;
     use tempo_chainspec::hardfork::TempoHardfork;
     use tempo_contracts::precompiles::{ITIP403Registry, TIP403_REGISTRY_ADDRESS};
     use tempo_precompiles::{DelegateCallNotAllowed, storage::PrecompileStorageProvider};
@@ -43,8 +43,8 @@ mod tests {
     use crate::{
         tempo_state::slots::TEMPO_BLOCK_NUMBER,
         test_utils::{
-            TestContext, TestPrecompiles, call_precompile, test_context, test_precompiles,
-            test_storage_provider,
+            PrecompileOutput, TestContext, TestPrecompiles, call_precompile, test_context,
+            test_precompiles, test_storage_provider,
         },
     };
 

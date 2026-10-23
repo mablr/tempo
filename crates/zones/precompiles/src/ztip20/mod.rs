@@ -151,7 +151,6 @@ mod tests {
     use alloy::primitives::{Address, B256, Bytes, U256, address};
     use alloy_sol_types::{SolCall, SolError, SolInterface};
     use evm2::precompiles::PrecompileError;
-    use revm::precompile::PrecompileResult;
     use tempo_chainspec::hardfork::TempoHardfork;
     use tempo_contracts::{
         precompiles::{TIP20Error, UnknownFunctionSelector},
@@ -172,8 +171,8 @@ mod tests {
     use crate::{
         TempoState,
         test_utils::{
-            MockL1Reader, TestContext, TestPrecompiles, call_precompile, test_context,
-            test_precompiles, test_storage_provider,
+            MockL1Reader, PrecompileResult, TestContext, TestPrecompiles, call_precompile,
+            test_context, test_precompiles, test_storage_provider,
         },
     };
 
