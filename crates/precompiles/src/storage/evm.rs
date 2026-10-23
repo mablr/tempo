@@ -787,6 +787,7 @@ impl GasTrackerStorage<'_> {
 impl Deref for GasTrackerStorage<'_> {
     type Target = GasTracker;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Borrowed(gas_tracker) => gas_tracker,
@@ -796,6 +797,7 @@ impl Deref for GasTrackerStorage<'_> {
 }
 
 impl DerefMut for GasTrackerStorage<'_> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::Borrowed(gas_tracker) => gas_tracker,
