@@ -98,11 +98,6 @@ pub struct TempoTxResult {
     is_payment: bool,
     /// Block gas consumed by this transaction. The block `gas_used` field will be incremented by this value.
     block_gas_used: u64,
-    /// Validator-credited fee (in the validator's fee token) reported by `collectFeePostTx`.
-    ///
-    /// Used by the payload builder to score blocks by actual proposer revenue. The value is the
-    /// post-feeAMM amount, regardless of route shape — absorbs any number of pool haircuts.
-    validator_fee: U256,
 }
 
 impl Clone for TempoTxResult {
@@ -115,17 +110,12 @@ impl Clone for TempoTxResult {
             is_system_tx: self.is_system_tx,
             is_payment: self.is_payment,
             block_gas_used: self.block_gas_used,
-            validator_fee: self.validator_fee,
         }
     }
 }
 
 impl TempoTxResult {
     /// Creates a new [`TempoTxResult`] from a precomputed result and state.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "preserve execution provenance alongside precomputed results"
-    )]
     pub(crate) fn new_precomputed(
         tx: &TempoTxEnvelope,
         execution_context: ExecutionContext,
@@ -134,7 +124,6 @@ impl TempoTxResult {
         is_system_tx: bool,
         is_payment: bool,
         block_gas_used: u64,
-        validator_fee: U256,
     ) -> Self {
         Self {
             inner: EthTransactionResultWithState::new(
@@ -152,7 +141,6 @@ impl TempoTxResult {
             is_system_tx,
             is_payment,
             block_gas_used,
-            validator_fee,
         }
     }
 
@@ -173,7 +161,7 @@ impl TempoTxResult {
 
     /// Returns the validator-credited fee amount (post-feeAMM haircut) for this transaction.
     pub fn validator_fee(&self) -> U256 {
-        self.validator_fee
+        self.result().ext.validator_fee
     }
 
     /// Returns the transaction's pending EVM2 state.
@@ -675,8 +663,6 @@ impl<'a> BlockExecutor for TempoBlockExecutor<'a> {
         // Reject before the result is observed; `commit_transaction` derives the section again
         // from the committing executor's state.
         self.validate_tx(tx_hash, is_system_tx, is_payment, block_gas_used)?;
-        // Snapshot the per-tx validator-credited fee set by the handler's `reimburse_caller`
-        let validator_fee = inner.result().result.ext.validator_fee;
         Ok(TempoTxResult {
             inner,
             tx_type,
@@ -685,7 +671,6 @@ impl<'a> BlockExecutor for TempoBlockExecutor<'a> {
             is_system_tx,
             is_payment,
             block_gas_used,
-            validator_fee,
         })
     }
 
@@ -701,7 +686,6 @@ impl<'a> BlockExecutor for TempoBlockExecutor<'a> {
             is_system_tx,
             is_payment,
             block_gas_used,
-            validator_fee: _,
         } = output;
 
         // The result may have been produced by another executor (e.g. a BAL worker) whose
@@ -1436,7 +1420,6 @@ mod tests {
             is_system_tx,
             is_payment: false,
             block_gas_used,
-            validator_fee: U256::ZERO,
         }
     }
 
@@ -1811,7 +1794,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 21000,
-            validator_fee: U256::ZERO,
         };
 
         let gas_output = executor.commit_transaction(output).unwrap();
@@ -1955,7 +1937,6 @@ mod tests {
                 is_system_tx: false,
                 is_payment: false,
                 block_gas_used: 21_000,
-                validator_fee: U256::ZERO,
             })
             .unwrap();
 
@@ -2086,7 +2067,6 @@ mod tests {
                             is_system_tx: false,
                             is_payment: false,
                             block_gas_used: 21_000,
-                            validator_fee: U256::ZERO,
                         })
                         .unwrap();
                 }
@@ -2135,7 +2115,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 21000,
-            validator_fee: U256::ZERO,
         };
 
         let gas_output = executor.commit_transaction(output).unwrap();
@@ -2178,7 +2157,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 21000,
-            validator_fee: U256::ZERO,
         };
         executor.commit_transaction(output1).unwrap();
 
@@ -2205,7 +2183,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 50000,
-            validator_fee: U256::ZERO,
         };
         executor.commit_transaction(output2).unwrap();
 
@@ -2250,7 +2227,6 @@ mod tests {
                 is_system_tx: false,
                 is_payment: false,
                 block_gas_used: 21000,
-                validator_fee: U256::ZERO,
             })
             .unwrap();
 
@@ -2294,7 +2270,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 50_000,
-            validator_fee: U256::ZERO,
         };
         executor.commit_transaction(output).unwrap();
 
@@ -2344,7 +2319,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 200_000,
-            validator_fee: U256::ZERO,
         };
         executor.commit_transaction(output).unwrap();
 
@@ -2398,7 +2372,6 @@ mod tests {
             is_system_tx: false,
             is_payment: false,
             block_gas_used: 200_000,
-            validator_fee: U256::ZERO,
         };
         executor.commit_transaction(output).unwrap();
 
@@ -2832,7 +2805,6 @@ mod tests {
                 is_system_tx: false,
                 is_payment: false,
                 block_gas_used: regular_gas,
-                validator_fee: U256::ZERO,
             })
             .unwrap();
 
@@ -2883,7 +2855,6 @@ mod tests {
                 is_system_tx: false,
                 is_payment: false,
                 block_gas_used: 100_000,
-                validator_fee: U256::ZERO,
             })
             .unwrap();
 
@@ -2935,7 +2906,6 @@ mod tests {
                 is_system_tx: false,
                 is_payment: false,
                 block_gas_used: cumulative,
-                validator_fee: U256::ZERO,
             })
             .unwrap();
 
