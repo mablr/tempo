@@ -126,7 +126,11 @@ asm-keccak = [
 	"reth-ethereum/asm-keccak",
 	"reth-evm/asm-keccak",
 ]
-otlp = ["reth-ethereum/otlp", "reth-node-core/otlp"]
+otlp = [
+	"reth-ethereum/otlp",
+	"reth-node-core/otlp",
+	"reth-tracing/otlp",
+]
 js-tracer = [
 	"reth-ethereum/js-tracer",
 	"reth-node-builder/js-tracer",
