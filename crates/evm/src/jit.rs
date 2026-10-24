@@ -9,9 +9,10 @@ pub use reth_evm_ethereum::factory::JitMetrics;
 
 /// Returns a JIT runtime configuration for `spec`'s gas schedule and opcode table.
 ///
-/// Compiled code runs Tempo's own instructions for overridden opcodes such as SSTORE. Frames
-/// under another opcode table or gas schedule, and contracts that use an opcode Tempo adds, such
-/// as MILLISTIMESTAMP, stay on the interpreter.
+/// Compiled code runs Tempo's own instructions for overridden opcodes such as SSTORE, which check
+/// the active hardfork at runtime. Frames under another opcode table or gas schedule, and
+/// contracts that can reach an opcode Tempo adds, such as MILLISTIMESTAMP, stay on the
+/// interpreter.
 pub fn runtime_config(spec: TempoHardfork) -> RuntimeConfig {
     let config = tempo_execution_config(spec, 0);
     RuntimeConfig {
@@ -189,6 +190,17 @@ mod tests {
         let code = [returning_top(&[op::GAS]), vec![0x4f]].concat();
         let result = assert_compiled_matches(TempoHardfork::T7, InMemoryDB::default(), code);
         assert!(result.unwrap().result.status);
+    }
+
+    #[test]
+    fn latest_backend_runs_hardforks_with_the_same_gas_schedule() {
+        let code = returning_top(&[op::PUSH1, 1, op::PUSH0, op::SSTORE, op::GAS]);
+        let db = storage_credit_db(0, U256::ONE);
+        let interpreted = run(TempoHardfork::T7, db.clone(), code.clone(), None);
+        let backend = backend(TempoHardfork::T14);
+        let result = run(TempoHardfork::T7, db, code, Some(&backend));
+        assert_eq!(result, interpreted);
+        assert!(backend.stats().lookup_hits > 0);
     }
 
     #[test]

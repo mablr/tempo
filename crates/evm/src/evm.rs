@@ -72,8 +72,8 @@ impl TempoEvmFactory {
 impl TempoEvmFactory {
     /// Uses `backend` for compiled execution in EVMs created with JIT support enabled.
     ///
-    /// The backend must be created from [`crate::jit::runtime_config`]. It runs only frames
-    /// under that configuration's hardfork; others stay on the interpreter.
+    /// The backend must be created from [`crate::jit::runtime_config`]. It runs only frames with
+    /// that configuration's gas schedule and opcode table; others stay on the interpreter.
     pub fn with_jit(mut self, backend: crate::jit::JitBackend) -> Self {
         self.jit = Some(backend);
         self

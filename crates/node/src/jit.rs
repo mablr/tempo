@@ -8,7 +8,7 @@ use tempo_evm::jit::{JitBackend, JitMetrics, RuntimeConfig, RuntimeTuning, runti
 
 /// Starts a JIT backend for the chain's latest hardfork from the node's JIT arguments.
 ///
-/// Frames under earlier hardforks stay on the interpreter.
+/// Frames under a hardfork with another gas schedule or opcode table stay on the interpreter.
 pub(crate) fn spawn_backend<Node>(ctx: &BuilderContext<Node>) -> eyre::Result<JitBackend>
 where
     Node: FullNodeTypes<Types = crate::TempoNode>,
