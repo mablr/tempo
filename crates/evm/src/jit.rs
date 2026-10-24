@@ -4,7 +4,9 @@ use crate::{TempoEvmTypes, tempo_execution_config};
 use evm2_jit::runtime::HostConfig;
 use tempo_chainspec::hardfork::TempoHardfork;
 
-pub use evm2_jit::runtime::{JitBackend, RuntimeConfig, RuntimeTuning};
+pub use evm2_jit::runtime::{
+    JitBackend, JitMode, RuntimeConfig, RuntimeTuning, maybe_run_jit_helper,
+};
 pub use reth_evm_ethereum::factory::JitMetrics;
 
 /// Returns a JIT runtime configuration for `spec`'s gas schedule and opcode table.

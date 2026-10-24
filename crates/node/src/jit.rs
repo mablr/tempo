@@ -4,11 +4,16 @@ use reth_node_builder::{BuilderContext, FullNodeTypes};
 use reth_tracing::tracing::{debug, info, warn};
 use std::{sync::Arc, time::Duration};
 use tempo_chainspec::hardfork::TempoHardforks;
-use tempo_evm::jit::{JitBackend, JitMetrics, RuntimeConfig, RuntimeTuning, runtime_config};
+use tempo_evm::jit::{
+    JitBackend, JitMetrics, JitMode, RuntimeConfig, RuntimeTuning, runtime_config,
+};
 
 /// Starts a JIT backend for the chain's latest hardfork from the node's JIT arguments.
 ///
 /// Frames under a hardfork with another gas schedule or opcode table stay on the interpreter.
+/// Compilation runs in a helper process, which is this binary run through
+/// [`tempo_evm::jit::maybe_run_jit_helper`], so that the backend can pause it while blocks are
+/// built and validated. Where the helper cannot be used, compilation runs in this process.
 pub(crate) fn spawn_backend<Node>(ctx: &BuilderContext<Node>) -> eyre::Result<JitBackend>
 where
     Node: FullNodeTypes<Types = crate::TempoNode>,
@@ -18,7 +23,7 @@ where
     let defaults = RuntimeTuning::default();
     let metrics = JitMetrics::default();
     let compilation_metrics = metrics.clone();
-    let backend = JitBackend::new(RuntimeConfig {
+    let config = RuntimeConfig {
         enabled: true,
         blocking: args.blocking,
         debug_assertions: args.debug,
@@ -40,7 +45,15 @@ where
             debug!(target: "tempo::jit", code_hash = %event.code_hash, success = event.success,
                 duration = ?event.duration, "JIT compilation finished");
         })),
+        jit_mode: JitMode::OutOfProcess,
         ..runtime_config(spec)
+    };
+    let backend = JitBackend::new(config.clone()).or_else(|err| {
+        warn!(target: "tempo::jit", %err, "Out-of-process JIT unavailable, compiling in process");
+        JitBackend::new(RuntimeConfig {
+            jit_mode: JitMode::InProcess,
+            ..config
+        })
     })?;
     warn!(target: "tempo::jit", ?spec, hot_threshold = args.hot_threshold,
         blocking = args.blocking, "Started experimental EVM2 JIT backend");
