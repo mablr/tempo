@@ -183,6 +183,13 @@ mod tests {
     }
 
     #[test]
+    fn compiled_code_ignores_unreachable_millis_timestamp() {
+        // Trailing data such as Solidity metadata may contain the opcode byte.
+        let code = [returning_top(&[op::GAS]), vec![0x4f]].concat();
+        assert_compiled_matches(TempoHardfork::T7, InMemoryDB::default(), code);
+    }
+
+    #[test]
     fn other_hardfork_stays_interpreted() {
         let code = returning_top(&[op::PUSH1, 1, op::PUSH0, op::SSTORE, op::GAS]);
         let db = storage_credit_db(0, U256::ONE);
