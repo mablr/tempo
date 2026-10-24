@@ -263,7 +263,7 @@ jobs:
         run: cargo nextest run --profile ci -p tempo-evm --lib --features jit -E 'test(/^jit::/)'
         env:
           EVM2_JIT_MODE: out-of-process
-          EVM2_JIT_HELPER_PATH: target/debug/tempo
+          EVM2_JIT_HELPER_PATH: ${{ github.workspace }}/target/debug/tempo
 
   cli:
     name: CLI smoke tests
