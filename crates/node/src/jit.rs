@@ -1,7 +1,7 @@
 //! Native EVM2 JIT backend for Tempo nodes.
 
 use reth_node_builder::{BuilderContext, FullNodeTypes};
-use reth_tracing::tracing::{debug, info, warn};
+use reth_tracing::tracing::{debug, warn};
 use std::{sync::Arc, time::Duration};
 use tempo_chainspec::hardfork::TempoHardforks;
 use tempo_evm::jit::{
@@ -67,7 +67,7 @@ where
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {
                         let stats = stats_backend.stats();
                         metrics.record(&stats);
-                        info!(target: "tempo::jit", hits = stats.lookup_hits,
+                        debug!(target: "tempo::jit", hits = stats.lookup_hits,
                             misses = stats.lookup_misses,
                             compiled = stats.compilations_succeeded,
                             failed = stats.compilations_failed, "JIT runtime stats");
