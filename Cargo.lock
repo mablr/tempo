@@ -4213,7 +4213,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c54e03a951783e8b327515db3f2a2fd0e3bed362a96b066f341ce66ed49b4ead"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -4750,7 +4750,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4827,7 +4827,7 @@ dependencies = [
 [[package]]
 name = "evm2"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-consensus",
  "alloy-eip7928",
@@ -4864,10 +4864,11 @@ dependencies = [
 [[package]]
 name = "evm2-inspectors"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-consensus",
  "alloy-eip2930",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rpc-types-eth",
  "alloy-rpc-types-trace",
@@ -4886,7 +4887,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "evm2",
  "evm2-jit-backend",
@@ -4901,7 +4902,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit-backend"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "eyre",
  "ruint",
@@ -4910,12 +4911,12 @@ dependencies = [
 [[package]]
 name = "evm2-jit-build"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 
 [[package]]
 name = "evm2-jit-builtins"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-primitives",
  "evm2",
@@ -4928,7 +4929,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit-codegen"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-primitives",
  "bitflags 2.13.2",
@@ -4951,7 +4952,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit-context"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-primitives",
  "evm2",
@@ -4961,7 +4962,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit-llvm"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-primitives",
  "cc",
@@ -4974,7 +4975,7 @@ dependencies = [
 [[package]]
 name = "evm2-jit-runtime"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "alloy-primitives",
  "crossbeam-channel",
@@ -5001,7 +5002,7 @@ dependencies = [
 [[package]]
 name = "evm2-macros"
 version = "0.1.0"
-source = "git+https://github.com/DaniPopes/evm2?rev=301852ff4b0cc1f9878ed6e9ff58b35e5eb95152#301852ff4b0cc1f9878ed6e9ff58b35e5eb95152"
+source = "git+https://github.com/DaniPopes/evm2?rev=3067a9378b020a0f3dbd8e7c5eb64044b57516bc#3067a9378b020a0f3dbd8e7c5eb64044b57516bc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6596,7 +6597,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7862,7 +7863,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -9176,7 +9177,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -10695,11 +10696,13 @@ dependencies = [
  "alloy-sol-types",
  "evm2",
  "evm2-jit",
+ "metrics",
  "reth-chainspec",
  "reth-ethereum-forks",
  "reth-ethereum-primitives",
  "reth-evm",
  "reth-execution-types",
+ "reth-metrics",
  "reth-primitives-traits",
  "reth-storage-errors",
 ]
@@ -12690,7 +12693,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -12770,7 +12773,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs 1.0.10",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -13804,10 +13807,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -14176,6 +14179,7 @@ dependencies = [
  "commonware-utils",
  "derive_more",
  "evm2",
+ "evm2-jit",
  "evm2-macros",
  "eyre",
  "indexmap 2.14.2",
@@ -16112,7 +16116,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
