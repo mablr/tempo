@@ -80,7 +80,7 @@ impl TempoEvmFactory {
     }
 
     /// Returns the JIT backend, if configured.
-    pub fn jit(&self) -> Option<&crate::jit::JitBackend> {
+    pub(crate) fn jit(&self) -> Option<&crate::jit::JitBackend> {
         self.jit.as_ref()
     }
 

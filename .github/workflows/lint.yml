@@ -49,7 +49,7 @@ jobs:
         with:
           version: v0.15.0
       - name: Install LLVM for JIT targets
-        run: .github/scripts/install_llvm.sh ubuntu
+        run: .github/scripts/install_llvm.sh
       - uses: ./.github/actions/native-libs # zizmor: ignore[self-repository] actionlint does not support $/ references yet.
         with:
           cargo-args: --workspace --all-features
@@ -144,7 +144,7 @@ jobs:
         with:
           version: v0.15.0
       - name: Install LLVM for JIT targets
-        run: .github/scripts/install_llvm.sh ubuntu
+        run: .github/scripts/install_llvm.sh
       - uses: ./.github/actions/native-libs # zizmor: ignore[self-repository] actionlint does not support $/ references yet.
         with:
           cargo-args: --workspace --all-features

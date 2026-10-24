@@ -1,10 +1,11 @@
 //! Native EVM2 JIT execution for Tempo.
 
 use crate::{TempoEvmTypes, tempo_execution_config};
+use evm2_jit::runtime::HostConfig;
 use tempo_chainspec::hardfork::TempoHardfork;
 
-pub use evm2_jit::runtime::{HostConfig, JitBackend, RuntimeConfig, RuntimeTuning};
-pub use reth_evm_ethereum::factory::{CompilationEvent, JitMetrics};
+pub use evm2_jit::runtime::{JitBackend, RuntimeConfig, RuntimeTuning};
+pub use reth_evm_ethereum::factory::JitMetrics;
 
 /// Returns a JIT runtime configuration for `spec`'s gas schedule and opcode table.
 ///
@@ -186,7 +187,8 @@ mod tests {
     fn compiled_code_ignores_unreachable_millis_timestamp() {
         // Trailing data such as Solidity metadata may contain the opcode byte.
         let code = [returning_top(&[op::GAS]), vec![0x4f]].concat();
-        assert_compiled_matches(TempoHardfork::T7, InMemoryDB::default(), code);
+        let result = assert_compiled_matches(TempoHardfork::T7, InMemoryDB::default(), code);
+        assert!(result.unwrap().result.status);
     }
 
     #[test]
