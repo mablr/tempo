@@ -125,8 +125,6 @@ asm-keccak = [
 	"tempo-alloy/asm-keccak",
 	"reth-ethereum/asm-keccak",
 	"reth-evm/asm-keccak",
-	"reth-execution-types/asm-keccak",
-	"reth-storage-api/asm-keccak",
 ]
 otlp = ["reth-ethereum/otlp", "reth-node-core/otlp"]
 js-tracer = [
@@ -141,7 +139,6 @@ jemalloc = [
 	"reth-ethereum/jemalloc",
 	"reth-node-core/jemalloc",
 	"reth-node-metrics/jemalloc",
-	"reth-provider/jemalloc",
 ]
 jemalloc-prof = [
 	"reth-ethereum/jemalloc-prof",
