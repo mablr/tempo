@@ -1278,4 +1278,22 @@ mod tests {
                 .enable_prewarming
         );
     }
+
+    #[test]
+    fn parses_jit_args() {
+        let cli = TempoCli::try_parse_from([
+            "tempo",
+            "node",
+            "--dev",
+            "--jit",
+            "--jit.hot-threshold",
+            "8",
+        ])
+        .unwrap();
+        let Commands::Node(node_cmd) = cli.command else {
+            panic!("expected node command");
+        };
+        assert!(node_cmd.jit.enabled);
+        assert_eq!(node_cmd.jit.hot_threshold, 8);
+    }
 }

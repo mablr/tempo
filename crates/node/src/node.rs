@@ -572,6 +572,18 @@ where
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
         let mut evm_config = TempoEvmConfig::new(ctx.chain_spec());
+        if ctx.config().jit.enabled {
+            #[cfg(feature = "jit")]
+            {
+                let backend = crate::jit::spawn_backend(ctx)?;
+                evm_config = evm_config
+                    .with_evm_factory(tempo_evm::TempoEvmFactory::default().with_jit(backend));
+            }
+            #[cfg(not(feature = "jit"))]
+            eyre::bail!(
+                "JIT compilation was requested but this binary was compiled without the `jit` feature"
+            );
+        }
         if let Some(cache) = ctx.sender_recovery_cache() {
             evm_config = evm_config.with_sender_recovery_cache(cache.clone());
         }

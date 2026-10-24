@@ -17,6 +17,10 @@ pub type PrecompilesBuilder =
 pub struct TempoEvmFactory {
     fee_manager: Arc<dyn ProtocolFeeManager>,
     precompiles_builder: PrecompilesBuilder,
+    #[cfg(feature = "jit")]
+    jit: Option<crate::jit::JitBackend>,
+    #[cfg(feature = "jit")]
+    jit_support: bool,
 }
 
 impl Default for TempoEvmFactory {
@@ -37,6 +41,10 @@ impl TempoEvmFactory {
         Self {
             fee_manager: Arc::new(TempoFeeManager::new()),
             precompiles_builder: builder,
+            #[cfg(feature = "jit")]
+            jit: None,
+            #[cfg(feature = "jit")]
+            jit_support: false,
         }
     }
 
@@ -57,6 +65,66 @@ impl TempoEvmFactory {
     pub(crate) fn evm_ext(&self, mut ext: TempoEvmExt) -> TempoEvmExt {
         ext.fee_manager = self.fee_manager.clone();
         ext
+    }
+}
+
+#[cfg(feature = "jit")]
+impl TempoEvmFactory {
+    /// Uses `backend` for compiled execution in EVMs created with JIT support enabled.
+    ///
+    /// The backend must be created from [`crate::jit::runtime_config`]. It runs only frames
+    /// under that configuration's hardfork; others stay on the interpreter.
+    pub fn with_jit(mut self, backend: crate::jit::JitBackend) -> Self {
+        self.jit = Some(backend);
+        self
+    }
+
+    /// Returns the JIT backend, if configured.
+    pub fn jit(&self) -> Option<&crate::jit::JitBackend> {
+        self.jit.as_ref()
+    }
+
+    pub(crate) fn set_jit_support(&mut self, enabled: bool) {
+        self.jit_support = enabled;
+    }
+
+    /// Installs compiled execution if JIT support is enabled for this factory.
+    pub(crate) fn configure_jit(&self, evm: &mut TempoEvm<'_>) {
+        if self.jit_support
+            && let Some(backend) = &self.jit
+        {
+            evm.set_interpreter_runner(evm2_jit::evm2_evm::JitInterpreterRunner::new(
+                backend.clone(),
+            ));
+        }
+    }
+}
+
+#[cfg(feature = "jit")]
+impl reth_evm::JitBackend for TempoEvmFactory {
+    fn set_enabled(&self, enabled: bool) -> Result<(), String> {
+        let Some(backend) = &self.jit else {
+            return Err("JIT backend is not configured".to_string());
+        };
+        backend.set_enabled(enabled).map_err(|err| err.to_string())
+    }
+
+    fn pause(&self) {
+        if let Some(backend) = &self.jit {
+            backend.pause();
+        }
+    }
+
+    fn resume(&self) {
+        if let Some(backend) = &self.jit {
+            backend.resume();
+        }
+    }
+
+    fn clear(&self) {
+        if let Some(backend) = &self.jit {
+            backend.clear_all();
+        }
     }
 }
 
@@ -83,6 +151,8 @@ impl reth_evm_ethereum::EvmFactory for TempoEvmFactory {
         let precompiles = self.precompiles(&env, &ext);
         *evm.ext_mut() = ext;
         evm.set_precompiles(precompiles);
+        #[cfg(feature = "jit")]
+        self.configure_jit(evm);
     }
 }
 
