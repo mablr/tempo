@@ -71,7 +71,7 @@ use tempo_chainspec::{
 };
 use tempo_consensus::{feed as consensus_feed, run_consensus_stack, run_follow_stack};
 use tempo_contracts::precompiles::{ZONE_FACTORY_ADDRESS, initial_zone_factory_config};
-use tempo_evm::{TempoEvmConfig, consensus::TempoConsensus};
+use tempo_evm::consensus::TempoConsensus;
 use tempo_faucet::faucet::{TempoFaucetExt, TempoFaucetExtApiServer};
 pub use tempo_node::{
     AccountInfoReader, AddressFilter, InvalidPoolTransactionError, PoolTransaction,
@@ -469,8 +469,15 @@ pub fn tempo_main_with(mut overrides: TempoOverrides) -> eyre::Result<()> {
         ret
     });
 
-    let components =
-        |spec: Arc<TempoChainSpec>| (TempoEvmConfig::new(spec.clone()), TempoConsensus::new(spec));
+    let jit_args = match &cli.command {
+        Commands::ReExecute(cmd) => cmd.jit.clone(),
+        _ => Default::default(),
+    };
+    let components = move |spec: Arc<TempoChainSpec>| {
+        let (evm_config, _) = tempo_node::node::build_evm_config(spec.clone(), &jit_args, None)
+            .expect("failed to build EVM config");
+        (evm_config, TempoConsensus::new(spec))
+    };
 
     cli.run_with_components::<TempoNode>(components, async move |builder, args| {
         if let Some(value) = args.consensus.message_backlog {

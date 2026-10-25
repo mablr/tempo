@@ -18,7 +18,7 @@ pub struct TempoEvmFactory {
     fee_manager: Arc<dyn ProtocolFeeManager>,
     precompiles_builder: PrecompilesBuilder,
     #[cfg(feature = "jit")]
-    jit: Option<crate::jit::JitBackend>,
+    jit: Option<(crate::jit::JitBackend, crate::jit::JitMetrics)>,
     #[cfg(feature = "jit")]
     jit_support: bool,
 }
@@ -70,18 +70,23 @@ impl TempoEvmFactory {
 
 #[cfg(feature = "jit")]
 impl TempoEvmFactory {
-    /// Uses `backend` for compiled execution in EVMs created with JIT support enabled.
+    /// Uses `backend` for compiled execution in EVMs created with JIT support enabled, recording
+    /// pauses and resumes in `metrics`.
     ///
     /// The backend must be created from [`crate::jit::runtime_config`]. It runs only frames with
     /// that configuration's gas schedule and opcode table; others stay on the interpreter.
-    pub fn with_jit(mut self, backend: crate::jit::JitBackend) -> Self {
-        self.jit = Some(backend);
+    pub fn with_jit(
+        mut self,
+        backend: crate::jit::JitBackend,
+        metrics: crate::jit::JitMetrics,
+    ) -> Self {
+        self.jit = Some((backend, metrics));
         self
     }
 
     /// Returns the JIT backend, if configured.
-    pub(crate) fn jit(&self) -> Option<&crate::jit::JitBackend> {
-        self.jit.as_ref()
+    pub fn jit_backend(&self) -> Option<&crate::jit::JitBackend> {
+        self.jit.as_ref().map(|(backend, _)| backend)
     }
 
     pub(crate) fn set_jit_support(&mut self, enabled: bool) {
@@ -91,7 +96,7 @@ impl TempoEvmFactory {
     /// Installs compiled execution if JIT support is enabled for this factory.
     pub(crate) fn configure_jit(&self, evm: &mut TempoEvm<'_>) {
         if self.jit_support
-            && let Some(backend) = &self.jit
+            && let Some(backend) = self.jit_backend()
         {
             evm.set_interpreter_runner(evm2_jit::evm2_evm::JitInterpreterRunner::new(
                 backend.clone(),
@@ -103,26 +108,38 @@ impl TempoEvmFactory {
 #[cfg(feature = "jit")]
 impl reth_evm::JitBackend for TempoEvmFactory {
     fn set_enabled(&self, enabled: bool) -> Result<(), String> {
-        let Some(backend) = &self.jit else {
+        let Some(backend) = self.jit_backend() else {
             return Err("JIT backend is not configured".to_string());
         };
         backend.set_enabled(enabled).map_err(|err| err.to_string())
     }
 
     fn pause(&self) {
-        if let Some(backend) = &self.jit {
+        if let Some((backend, metrics)) = &self.jit {
+            let was_paused = backend.is_paused();
             backend.pause();
+            let is_paused = backend.is_paused();
+            if !was_paused && is_paused {
+                metrics.pauses_total.increment(1);
+            }
+            metrics.paused.set(f64::from(u8::from(is_paused)));
         }
     }
 
     fn resume(&self) {
-        if let Some(backend) = &self.jit {
+        if let Some((backend, metrics)) = &self.jit {
+            let was_paused = backend.is_paused();
             backend.resume();
+            let is_paused = backend.is_paused();
+            if was_paused && !is_paused {
+                metrics.resumes_total.increment(1);
+            }
+            metrics.paused.set(f64::from(u8::from(is_paused)));
         }
     }
 
     fn clear(&self) {
-        if let Some(backend) = &self.jit {
+        if let Some(backend) = self.jit_backend() {
             backend.clear_all();
         }
     }

@@ -89,7 +89,7 @@ mod tests {
         let mut factory =
             TempoEvmFactory::new_with_precompiles(|_, _| Box::new(NoPrecompiles::default()));
         if let Some(backend) = jit {
-            factory = factory.with_jit(backend.clone());
+            factory = factory.with_jit(backend.clone(), JitMetrics::default());
         }
         let config = TempoEvmConfig::new(test_chainspec())
             .with_evm_factory(factory)

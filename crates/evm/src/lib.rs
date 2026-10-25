@@ -221,7 +221,7 @@ impl ConfigureEvm for TempoEvmConfig {
     #[cfg(feature = "jit")]
     fn jit_backend(&self) -> Option<&dyn reth_evm::JitBackend> {
         self.evm_factory
-            .jit()
+            .jit_backend()
             .is_some()
             .then_some(&self.evm_factory as _)
     }
