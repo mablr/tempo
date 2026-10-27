@@ -450,6 +450,28 @@ fn a_recreated_account_keeps_none_of_its_earlier_slots() {
 }
 
 #[test]
+fn a_created_account_reads_its_unwritten_slots_as_zero_on_an_exact_pre_state() {
+    // The extractor lists the target as empty, a block creates it, and later code reads a slot
+    // nothing wrote: the account did not exist before, so the slot is zero rather than missing.
+    let db = state::seed(&exact(one_account(RECIPIENT, AccountInput::default()))).unwrap();
+    let created = StateUpdate {
+        accounts: vec![AccountUpdate {
+            address: RECIPIENT,
+            original: None,
+            current: Some(AccountInfo::default().with_balance(U256::from(1))),
+            created: true,
+            wiped: false,
+            storage: Vec::new(),
+        }],
+    };
+    db.commit(&Net::of([&created]), |_| None);
+
+    let read = db.reader().get_storage(&RECIPIENT, &U256::from(1));
+    assert_eq!(read.unwrap(), U256::ZERO);
+    assert!(!db.pre.missed());
+}
+
+#[test]
 fn an_epoch_boundary_block_updates_the_committee_after_its_transactions() {
     // From T8 on, the last block of an epoch carries the DKG outcome that the
     // committee is set from.

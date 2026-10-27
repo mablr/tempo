@@ -67,7 +67,8 @@ impl Db {
             }
             cache.accounts.insert(*address, info);
             let storage = cache.storage.entry(*address).or_default();
-            if change.storage_cleared {
+            // An account that did not exist has no slots, whatever the pre-state lists for it.
+            if change.storage_cleared || change.original.is_none() {
                 storage.wipe();
             }
             storage.slots.extend(
