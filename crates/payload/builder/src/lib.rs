@@ -391,8 +391,9 @@ where
 
         let prewarm_evm_env = evm_env.clone();
         let assembly_evm_env = evm_env.clone();
-        let evm = self.evm_config.evm_with_database(db, evm_env);
-        let mut executor = self.evm_config.create_executor(evm, ctx.clone());
+        let evm_config = self.evm_config.clone().with_jit_support();
+        let evm = evm_config.evm_with_database(db, evm_env);
+        let mut executor = evm_config.create_executor(evm, ctx.clone());
 
         check_cancel!();
 

@@ -160,10 +160,12 @@ fn insert_storage(evm: &mut crate::TempoEvm<'_>, address: Address, slot: U256, v
         .insert_account_storage(&address, &slot, &value);
 }
 
-/// Gives `address` code, as a call only runs the interpreter in an account that has some.
-fn insert_code(evm: &mut crate::TempoEvm<'_>, address: Address) {
-    let info = AccountInfo::default().with_code(Bytecode::new_raw(Bytes::from_static(&[0x00])));
-    evm.overlay_db_mut().insert_account_info(&address, info);
+/// Gives `address` code so calls to it reach the interpreter runner.
+fn insert_stop_code(evm: &mut crate::TempoEvm<'_>, address: Address) {
+    evm.overlay_db_mut().insert_account_info(
+        &address,
+        AccountInfo::default().with_code(Bytecode::new_raw(Bytes::from_static(&[0x00]))),
+    );
 }
 
 fn resolve(
@@ -1744,7 +1746,6 @@ fn test_t3_scope_validation_moves_to_execution(gas_limit: u64, expected_stop: In
         input: Bytes::from_static(&CALL_SCOPE_SELECTOR),
     }];
     let mut evm = test_evm(TempoHardfork::T3);
-    insert_code(&mut evm, target);
 
     StorageCtx::enter_evm_without_tip1060_accounting(&mut evm, || {
         let mut keychain = AccountKeychain::new();
@@ -1802,6 +1803,7 @@ fn test_t3_scope_validation_moves_to_execution(gas_limit: u64, expected_stop: In
     .expect("scope validation no longer runs during state validation");
     assert_eq!(keychain.access_key, Some(access_key));
 
+    insert_stop_code(&mut evm, target);
     let call_count = Arc::new(AtomicUsize::new(0));
     evm.set_interpreter_runner(Runner(call_count.clone()));
     let result = execute_batch(
@@ -2114,13 +2116,15 @@ fn test_multicall_gas_refund_accounting() {
 
     let targets = [Address::random(), Address::random()];
     for target in targets {
-        insert_code(&mut evm, target);
+        insert_stop_code(&mut evm, target);
     }
-    let calls = targets.map(|target| Call {
-        to: TxKind::Call(target),
-        value: U256::ZERO,
-        input: Bytes::new(),
-    });
+    let calls = targets
+        .map(|target| Call {
+            to: TxKind::Call(target),
+            value: U256::ZERO,
+            input: Bytes::new(),
+        })
+        .to_vec();
 
     let result = execute_batch(
         &mut evm,
@@ -4457,6 +4461,8 @@ fn test_state_gas_batch_create_accounting() {
             call_idx: AtomicUsize::new(0),
             final_stop,
         });
+        let target = Address::random();
+        insert_stop_code(&mut evm, target);
         let initial_state_gas = 0;
         let (gas_limit, reservoir) = initial_gas_and_reservoir(
             evm.version(),
@@ -4464,8 +4470,6 @@ fn test_state_gas_batch_create_accounting() {
             INTRINSIC_GAS,
             initial_state_gas,
         );
-        let target = Address::random();
-        insert_code(&mut evm, target);
         let calls = vec![
             Call {
                 to: TxKind::Create,
