@@ -253,16 +253,23 @@ static GENESIS: LazyLock<Cache> = LazyLock::new(|| {
     cache
 });
 
-/// `pre_state` as a database. `InvalidInput` if a genesis pre-state overrides a genesis account, or
-/// if an account's code starts with the EIP-7702 prefix `0xef01` but is not a valid delegation.
+/// `pre_state` as a database. A genesis pre-state's account at a genesis address replaces it whole,
+/// but must keep the genesis code: a protocol contract's code marks it deployed. `InvalidInput` if it
+/// does not, or if an account's code starts with the EIP-7702 prefix `0xef01` but is not a valid
+/// delegation.
 pub(crate) fn seed(pre_state: &PreState) -> Result<Db, ErrorClass> {
     let (state, mut cache, exact) = match pre_state {
         PreState::Genesis(state) => {
-            if state
-                .accounts
-                .keys()
-                .any(|address| GENESIS.accounts.contains_key(address))
-            {
+            let keeps_code = |(address, account): (&Address, &AccountInput)| {
+                GENESIS
+                    .accounts
+                    .get(address)
+                    .and_then(Option::as_ref)
+                    .is_none_or(|genesis| {
+                        account.code == Contracts(&[&GENESIS.contracts]).code(genesis)
+                    })
+            };
+            if !state.accounts.iter().all(keeps_code) {
                 return Err(ErrorClass::InvalidInput);
             }
             (state, GENESIS.clone(), false)
@@ -295,10 +302,11 @@ fn is_empty(account: &AccountInput) -> bool {
         && account.storage.values().all(U256::is_zero)
 }
 
-/// Inserts `account`, its code and the slots the pre-state holds for it, or records that it does not
-/// exist if it holds nothing. Other slots are read from the database. `InvalidInput` if its code is
-/// a malformed EIP-7702 delegation.
+/// Replaces the account at `address` with `account`, its code and the slots the pre-state holds for
+/// it, or records that it does not exist if it holds nothing. Other slots are read from the
+/// database. `InvalidInput` if its code is a malformed EIP-7702 delegation.
 fn insert(cache: &mut Cache, address: Address, account: &AccountInput) -> Result<(), ErrorClass> {
+    cache.storage.remove(&address);
     if is_empty(account) {
         cache.accounts.insert(address, None);
         return Ok(());

@@ -16,15 +16,17 @@ use tempo_fuzz_types::{InvariantFailure, InvariantScope};
 
 use crate::state::{Db, PreStateDb};
 
-/// Appends to `failures` each invariant `db` breaks, at `scope`. `evm` is the EVM that executes the
-/// block, whose environment the views run in. Only contracts for which `selected` holds are
+/// Appends to `failures` each invariant `db` breaks, at `scope`, over the accounts `db` holds;
+/// `holders` are summed as balance holders too, but never checked as contracts. `env` is the
+/// block's environment, which the views run in. Only contracts for which `selected` holds are
 /// checked, e.g. those whose state changed, as no other contract's invariants can have broken.
 pub(crate) fn check(
     db: &Db,
     evm_config: &TempoEvmConfig,
-    evm: &TempoEvm<'_>,
+    env: TempoEvmEnv,
     scope: &InvariantScope,
     selected: impl Fn(&Address) -> bool,
+    holders: &[Address],
     failures: &mut Vec<InvariantFailure>,
 ) {
     let missed = db.pre.missed();
@@ -37,13 +39,15 @@ pub(crate) fn check(
         .map(|(address, _)| *address)
         .collect();
     accounts.sort_unstable();
+    let mut all_holders: Vec<Address> = accounts.iter().chain(holders).copied().collect();
+    all_holders.sort_unstable();
+    all_holders.dedup();
 
-    let env = TempoEvmEnv::new_with_version(evm.config_spec_id(), *evm.block(), *evm.version());
     let mut views = Views {
         evm: evm_config.evm_with_env(db.view(), env),
         pre_state: &db.pre,
     };
-    for (id, message) in tip20::check(&mut views, &accounts, selected) {
+    for (id, message) in tip20::check(&mut views, &accounts, &all_holders, selected) {
         failures.push(InvariantFailure {
             id: id.to_string(),
             message,
