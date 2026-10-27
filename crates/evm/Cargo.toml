@@ -66,8 +66,6 @@ alloy-sol-types.workspace = true
 base64.workspace = true
 commonware-consensus.workspace = true
 commonware-cryptography.workspace = true
-commonware-math.workspace = true
-commonware-utils.workspace = true
 criterion.workspace = true
 eyre.workspace = true
 indexmap = { workspace = true, features = ["serde"] }
@@ -75,13 +73,13 @@ insta.workspace = true
 p256 = { workspace = true, features = ["ecdsa"] }
 proptest.workspace = true
 rand_08.workspace = true
-rand.workspace = true
 reth-execution-cache.workspace = true
 reth-storage-api.workspace = true
 reth-trie.workspace = true
 reth-trie-common.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+tempo-dkg-onchain-artifacts = { workspace = true, features = ["test-utils"] }
 tempo-precompiles = { workspace = true, features = ["test-utils"] }
 tempo-primitives = { workspace = true, features = ["arbitrary", "test-utils"] }
 test-case.workspace = true
