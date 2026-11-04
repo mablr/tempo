@@ -313,14 +313,9 @@ impl TempoTxEnv {
                         value: transaction_env.value,
                         access_list: transaction_env.access_list.clone(),
                         authorization_list: transaction_env
-                            .authorization_list
-                            .iter()
-                            .map(|authorization| {
-                                authorization.as_signed().cloned().unwrap_or_else(|| {
-                                    authorization.inner().clone().into_signed(signature)
-                                })
-                            })
-                            .collect(),
+                            .authorization_list()
+                            .unwrap_or_default()
+                            .to_vec(),
                         input: transaction_env.input.clone(),
                     }
                     .into_signed(signature),
